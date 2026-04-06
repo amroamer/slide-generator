@@ -359,20 +359,33 @@ export default function PromptsPage() {
     setImportResult(null);
   }
 
+  const [importError, setImportError] = useState<string | null>(null);
+
   async function handleImportFile(file: File) {
     setImportParsing(true);
+    setImportError(null);
+    if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
+      setImportError("Only Excel files (.xlsx) are accepted");
+      setImportParsing(false);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setImportError("File too large. Maximum size is 5 MB");
+      setImportParsing(false);
+      return;
+    }
     try {
       const fd = new FormData();
       fd.append("file", file);
       const { data } = await api.post("/prompts/import/preview", fd);
       setImportPreview(data);
-      // Auto-check all non-error rows
       const checked = new Set<number>();
       data.rows.forEach((r: any, i: number) => { if (r.action !== "error" && r.action !== "skip") checked.add(i); });
       setImportChecked(checked);
       setImportStep("preview");
-    } catch (err) {
-      console.error("Import parse failed:", err);
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || "Failed to parse the Excel file";
+      setImportError(msg);
     } finally {
       setImportParsing(false);
     }
@@ -778,7 +791,13 @@ export default function PromptsPage() {
                     <span className="text-sm text-gray-600">Click to upload .xlsx file</span><span className="text-xs text-gray-400">Max 5 MB</span></>
                   )}
                 </div>
-                <input ref={importFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); }} />
+                <input ref={importFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = ""; }} />
+                {importError && (
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 flex items-start gap-2">
+                    <svg className="h-4 w-4 shrink-0 mt-0.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9.303 3.376c.866 1.5-.217 3.374-1.948 3.374H4.645c-1.73 0-2.813-1.874-1.948-3.374L10.051 3.378c.866-1.5 3.032-1.5 3.898 0L21.303 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                    <span>{importError}</span>
+                  </div>
+                )}
                 <button onClick={handleDownloadTemplate} className="text-xs text-blue-600 hover:underline">Download blank template</button>
               </div>
             )}
@@ -804,7 +823,15 @@ export default function PromptsPage() {
                         <td className="px-3 py-2"><input type="checkbox" disabled={row.action === "error" || row.action === "skip"} checked={importChecked.has(i)} onChange={() => { const n = new Set(importChecked); n.has(i) ? n.delete(i) : n.add(i); setImportChecked(n); }} className="rounded" /></td>
                         <td className="px-3 py-2 font-mono text-[11px] text-gray-700">{row.prompt_key}</td>
                         <td className="px-3 py-2 text-xs text-gray-600">{row.display_name}</td>
-                        <td className="px-3 py-2"><span className={"rounded px-2 py-0.5 text-[10px] font-semibold uppercase " + (row.action === "create" ? "bg-emerald-100 text-emerald-700" : row.action === "update" ? "bg-amber-100 text-amber-700" : row.action === "skip" ? "bg-gray-100 text-gray-500" : "bg-rose-100 text-rose-700")}>{row.action}</span></td>
+                        <td className="px-3 py-2">
+                          <span className={"rounded px-2 py-0.5 text-[10px] font-semibold uppercase " + (row.action === "create" ? "bg-emerald-100 text-emerald-700" : row.action === "update" ? "bg-amber-100 text-amber-700" : row.action === "skip" ? "bg-gray-100 text-gray-500" : "bg-rose-100 text-rose-700")}>{row.action}</span>
+                          {row.errors?.length > 0 && row.errors.map((e: string, ei: number) => (
+                            <div key={ei} className="mt-0.5 flex items-center gap-1 text-[10px] text-rose-600">
+                              <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" /></svg>
+                              {e}
+                            </div>
+                          ))}
+                        </td>
                       </tr>
                     ))}</tbody>
                   </table>

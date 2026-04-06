@@ -290,7 +290,7 @@ async def export_prompts(
     ws = wb.active
     ws.title = "Prompts"
 
-    headers = ["prompt_key", "display_name", "category", "pipeline_stage", "prompt_text", "description", "variables", "icon_name", "sort_order", "is_active"]
+    headers = ["prompt_key", "display_name", "category", "pipeline_stage", "description", "prompt_text", "variables", "icon_name", "sort_order", "is_active"]
     hfill = PatternFill(start_color="00338D", end_color="00338D", fill_type="solid")
     hfont = Font(color="FFFFFF", bold=True, size=11)
     for col, h in enumerate(headers, 1):
@@ -303,18 +303,18 @@ async def export_prompts(
         ws.cell(row=i, column=2, value=p.display_name)
         ws.cell(row=i, column=3, value=p.category)
         ws.cell(row=i, column=4, value=p.pipeline_stage or "global")
-        ws.cell(row=i, column=5, value=p.prompt_text)
-        ws.cell(row=i, column=6, value=p.description or "")
+        ws.cell(row=i, column=5, value=p.description or "")
+        ws.cell(row=i, column=6, value=p.prompt_text)
         vlist = p.variables if isinstance(p.variables, list) else []
         ws.cell(row=i, column=7, value=", ".join(vlist) if vlist else "")
         ws.cell(row=i, column=8, value=p.icon_name or "")
         ws.cell(row=i, column=9, value=p.sort_order)
         ws.cell(row=i, column=10, value="Yes" if p.is_active else "No")
 
-    ws.column_dimensions["A"].width = 30
-    ws.column_dimensions["B"].width = 30
-    ws.column_dimensions["E"].width = 100
-    ws.column_dimensions["F"].width = 40
+    ws.column_dimensions["A"].width = 25
+    ws.column_dimensions["B"].width = 35
+    ws.column_dimensions["E"].width = 40
+    ws.column_dimensions["F"].width = 100
 
     buf = BytesIO()
     wb.save(buf)
@@ -340,7 +340,7 @@ async def download_template():
     wb = Workbook()
     ws = wb.active
     ws.title = "Prompts"
-    headers = ["prompt_key", "display_name", "category", "pipeline_stage", "prompt_text", "description", "variables", "icon_name", "sort_order", "is_active"]
+    headers = ["prompt_key", "display_name", "category", "pipeline_stage", "description", "prompt_text", "variables", "icon_name", "sort_order", "is_active"]
     hfill = PatternFill(start_color="00338D", end_color="00338D", fill_type="solid")
     hfont = Font(color="FFFFFF", bold=True, size=11)
     for col, h in enumerate(headers, 1):
@@ -348,8 +348,8 @@ async def download_template():
         c.fill = hfill
         c.font = hfont
 
-    ws.append(["custom_example", "Example Custom Prompt", "custom", "global", "This is an example prompt. Use {audience} and {tone} variables.", "Example prompt for reference", "audience, tone", "Zap", 100, "Yes"])
-    ws.append(["qa_plan_custom", "Custom Quick Action", "quick_action_plan", "step2_plan", "Apply this custom transformation to the slide.", "Custom quick action", "", "Sparkles", 50, "Yes"])
+    ws.append(["custom_example", "Example Custom Prompt", "custom", "global", "Example prompt for reference", "This is an example prompt. Use {audience} and {tone} variables.", "audience, tone", "Zap", 100, "Yes"])
+    ws.append(["qa_plan_custom", "Custom Quick Action", "quick_action_plan", "step2_plan", "Custom quick action", "Apply this custom transformation to the slide.", "", "Sparkles", 50, "Yes"])
 
     ws.column_dimensions["A"].width = 25
     ws.column_dimensions["B"].width = 30
@@ -424,7 +424,7 @@ async def preview_import(
             action = "error"
         elif existing is None:
             action = "create"
-        elif existing.prompt_text != pt:
+        elif (existing.prompt_text or "").strip() != pt.strip():
             action = "update"
         else:
             action = "skip"
