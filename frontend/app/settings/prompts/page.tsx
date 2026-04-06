@@ -384,7 +384,15 @@ export default function PromptsPage() {
       setImportChecked(checked);
       setImportStep("preview");
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || "Failed to parse the Excel file";
+      const detail = err?.response?.data?.detail;
+      let msg: string;
+      if (Array.isArray(detail)) {
+        msg = detail.map((d: any) => d.msg || JSON.stringify(d)).join("; ");
+      } else if (typeof detail === "string") {
+        msg = detail;
+      } else {
+        msg = `Failed to parse the Excel file (${err?.response?.status || "unknown error"})`;
+      }
       setImportError(msg);
     } finally {
       setImportParsing(false);
