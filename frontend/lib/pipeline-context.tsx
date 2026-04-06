@@ -7,7 +7,6 @@ export interface StepState {
   status: "not_started" | "completed" | "stale";
   lastModified: string | null;
   staleReason: string | null;
-  // Extra fields per step
   version?: number;
   slideCount?: number;
   missingSlides?: string[];
@@ -25,6 +24,11 @@ export interface PipelineState {
     export: StepState;
   };
   hasStaleSteps: boolean;
+  hasInput: boolean;
+  hasPlan: boolean;
+  hasContent: boolean;
+  hasDesign: boolean;
+  hasExport: boolean;
   loaded: boolean;
   refreshPipeline: () => Promise<void>;
 }
@@ -35,6 +39,7 @@ const PipelineContext = createContext<PipelineState>({
   currentStep: 1,
   steps: { input: DEFAULT_STEP, plan: DEFAULT_STEP, content: DEFAULT_STEP, design: DEFAULT_STEP, export: DEFAULT_STEP },
   hasStaleSteps: false,
+  hasInput: false, hasPlan: false, hasContent: false, hasDesign: false, hasExport: false,
   loaded: false,
   refreshPipeline: async () => {},
 });
@@ -61,6 +66,7 @@ export function PipelineProvider({ presentationId, children }: { presentationId:
     currentStep: 1,
     steps: { input: DEFAULT_STEP, plan: DEFAULT_STEP, content: DEFAULT_STEP, design: DEFAULT_STEP, export: DEFAULT_STEP },
     hasStaleSteps: false,
+    hasInput: false, hasPlan: false, hasContent: false, hasDesign: false, hasExport: false,
     loaded: false,
   });
 
@@ -77,10 +83,14 @@ export function PipelineProvider({ presentationId, children }: { presentationId:
           export: mapStep(data.steps?.export),
         },
         hasStaleSteps: data.has_stale_steps || false,
+        hasInput: data.has_input || false,
+        hasPlan: data.has_plan || false,
+        hasContent: data.has_content || false,
+        hasDesign: data.has_design || false,
+        hasExport: data.has_export || false,
         loaded: true,
       });
     } catch {
-      // Pipeline endpoint not critical — don't block UI
       setState((prev) => ({ ...prev, loaded: true }));
     }
   }, [presentationId]);

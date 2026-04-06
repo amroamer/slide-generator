@@ -57,21 +57,35 @@ export default function Step3Page() {
   // Cleanup polling on unmount
   useEffect(() => () => { if (pollingRef.current) clearInterval(pollingRef.current); }, []);
 
-  const loadSlides = useCallback(async () => {
-    try {
-      const { data } = await api.get(`/presentations/${presId}/slides`);
-      setSlides(data);
-    } catch { setSlides([]); }
-    // Load plan summary for handoff chips
-    try {
-      const { data: plan } = await api.get(`/presentations/${presId}/plan`);
-      const secs = plan?.plan_json?.sections || [];
-      const total = secs.reduce((acc: number, s: any) => acc + (s.slides?.length || 0), 0);
-      setPlanSummary({ sections: secs.length, slides: total });
-    } catch { /* no plan yet */ }
-    finally { setLoading(false); }
-  }, [presId]);
+  const { hasContent, hasPlan, loaded: pipelineLoaded, refreshPipeline: refreshPipe } = usePipeline();
 
+  const loadSlides = useCallback(async () => {
+    if (!pipelineLoaded) return;
+
+    // Only fetch slides if content has been generated
+    if (hasContent) {
+      try {
+        const { data } = await api.get(`/presentations/${presId}/slides`);
+        setSlides(data);
+      } catch { setSlides([]); }
+    } else {
+      setSlides([]);
+    }
+
+    // Only fetch plan summary if plan exists
+    if (hasPlan) {
+      try {
+        const { data: plan } = await api.get(`/presentations/${presId}/plan`);
+        const secs = plan?.plan_json?.sections || [];
+        const total = secs.reduce((acc: number, s: any) => acc + (s.slides?.length || 0), 0);
+        setPlanSummary({ sections: secs.length, slides: total });
+      } catch { /* plan load failed */ }
+    }
+
+    setLoading(false);
+  }, [presId, pipelineLoaded, hasContent, hasPlan]);
+
+  useEffect(() => { refreshPipe(); }, [refreshPipe]);
   useEffect(() => { loadSlides(); }, [loadSlides]);
 
   async function handleGenerate() {

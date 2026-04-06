@@ -44,10 +44,12 @@ export default function Step1Page() {
           setConfig((c) => ({ ...c, audience: data.audience || "", tone: data.tone || "", language: data.language || "english", slideCount: data.slide_count || 10, brandProfileId: data.brand_profile_id || "" }));
         } catch { /* no input saved yet */ }
       }
-      try {
-        const { data: fl } = await api.get(`/presentations/${presId}/files`);
-        setFiles(fl.map((f: any) => ({ ...f, type: "uploaded", parse_status: "success" })));
-      } catch { /* no files */ }
+      if (hasSavedInput) {
+        try {
+          const { data: fl } = await api.get(`/presentations/${presId}/files`);
+          setFiles(fl.map((f: any) => ({ ...f, type: "uploaded", parse_status: "success" })));
+        } catch { /* no files */ }
+      }
       if (pres) setConfig((c) => ({ ...c, llmProvider: pres.llm_provider || c.llmProvider, language: pres.language || c.language }));
       setLoaded(true);
     }

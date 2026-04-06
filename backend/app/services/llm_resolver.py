@@ -43,6 +43,7 @@ async def resolve_llm(
         select(LLMConfig).where(
             LLMConfig.user_id == user.id,
             LLMConfig.provider == provider_name,
+            LLMConfig.is_active == True,  # noqa: E712
         )
     )
     user_config = result.scalar_one_or_none()

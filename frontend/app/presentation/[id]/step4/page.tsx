@@ -5,6 +5,7 @@ import { LayoutSelector } from "@/components/steps/layout-selector";
 import { SlideRenderer } from "@/components/slides/slide-renderer";
 import api from "@/lib/api";
 import { useActiveSlide } from "@/lib/active-slide-context";
+import { usePipeline } from "@/lib/pipeline-context";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePresentation } from "../context";
@@ -31,8 +32,17 @@ export default function Step4Page() {
   const [toast, setToast] = useState("");
   const autoAssigned = useRef(false);
   const [brandColors, setBrandColors] = useState<{ primary: string; accent: string }>({ primary: "#00338D", accent: "#0091DA" });
+  const { hasContent, hasInput, loaded: pipelineLoaded, refreshPipeline: refreshPipe } = usePipeline();
 
   const load = useCallback(async () => {
+    if (!pipelineLoaded) return;
+
+    if (!hasContent) {
+      setSlides([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data } = await api.get(`/presentations/${presId}/slides`);
       setSlides(data);
@@ -47,7 +57,10 @@ export default function Step4Page() {
         setToast("Layouts auto-assigned based on content");
         setTimeout(() => setToast(""), 3000);
       }
-      // Load brand profile colors
+    } catch { setSlides([]); }
+
+    // Load brand profile colors (only if input exists)
+    if (hasInput) {
       try {
         const { data: input } = await api.get(`/presentations/${presId}/input`);
         if (input.brand_profile_id) {
@@ -55,10 +68,12 @@ export default function Step4Page() {
           setBrandColors({ primary: bp.primary_color, accent: bp.secondary_color });
         }
       } catch {}
-    } catch { setSlides([]); }
-    finally { setLoading(false); }
-  }, [presId, reload]);
+    }
 
+    setLoading(false);
+  }, [presId, reload, pipelineLoaded, hasContent, hasInput]);
+
+  useEffect(() => { refreshPipe(); }, [refreshPipe]);
   useEffect(() => { load(); }, [load]);
 
   async function handleLayoutChange(slideId: string, layout: string) {

@@ -171,6 +171,11 @@ async def get_pipeline_status(presentation_id: uuid.UUID, db: AsyncSession) -> d
         "current_step": current_step,
         "steps": steps,
         "has_stale_steps": any(s["status"] == "stale" for s in steps.values()),
+        "has_input": has_input,
+        "has_plan": has_plan,
+        "has_content": has_content,
+        "has_design": has_design,
+        "has_export": has_export,
     }
 
 

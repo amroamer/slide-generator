@@ -38,7 +38,7 @@ export default function Step2Page() {
   const presId = id as string;
   const router = useRouter();
   const { pres, reload } = usePresentation();
-  const { steps: pipeSteps, refreshPipeline } = usePipeline();
+  const { steps: pipeSteps, refreshPipeline, hasPlan, loaded: pipelineLoaded } = usePipeline();
   const planStale = pipeSteps.plan.status === "stale";
   const [regenLoading, setRegenLoading] = useState(false);
 
@@ -54,6 +54,16 @@ export default function Step2Page() {
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   const loadPlan = useCallback(async () => {
+    // Wait for pipeline to tell us if a plan exists
+    if (!pipelineLoaded) return;
+
+    if (!hasPlan) {
+      // No plan yet — show generate button, no API call
+      setPlan(null);
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data } = await api.get(`/presentations/${presId}/plan`);
       setPlan(data);
@@ -62,13 +72,13 @@ export default function Step2Page() {
         setVersions(vers);
       } catch { /* versions not critical */ }
     } catch (err: any) {
-      // 404 = no plan yet (new presentation) — not an error
-      if (err?.response?.status !== 404) console.error(err);
+      console.error("Failed to load plan:", err);
       setPlan(null);
     }
     finally { setLoading(false); }
-  }, [presId]);
+  }, [presId, pipelineLoaded, hasPlan]);
 
+  useEffect(() => { refreshPipeline(); }, [refreshPipeline]);
   useEffect(() => { loadPlan(); }, [loadPlan]);
 
   async function handleGenerate() {

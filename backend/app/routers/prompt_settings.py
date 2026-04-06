@@ -23,20 +23,22 @@ router = APIRouter(prefix="/api/prompts", tags=["prompts"])
 
 def _to_response(p: PromptConfig, is_overridden: bool = False) -> dict:
     return {
-        "id": p.id,
+        "id": str(p.id),
         "prompt_key": p.prompt_key,
         "prompt_text": p.prompt_text,
         "category": p.category,
+        "pipeline_stage": p.pipeline_stage,
         "variables": p.variables,
         "is_active": p.is_active,
         "is_system": p.user_id is None,
         "is_overridden": is_overridden,
+        "seed_version": p.seed_version,
         "display_name": p.display_name,
         "description": p.description,
         "icon_name": p.icon_name,
         "sort_order": p.sort_order,
-        "created_at": p.created_at,
-        "updated_at": p.updated_at,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+        "updated_at": p.updated_at.isoformat() if p.updated_at else None,
     }
 
 
@@ -220,6 +222,103 @@ async def reset_prompt(
         raise HTTPException(status_code=404, detail="No user override found")
     await db.delete(user_prompt)
     return {"status": "reset", "prompt_key": prompt_key}
+
+
+@router.post("/by-id/{prompt_id}/duplicate")
+async def duplicate_prompt(
+    prompt_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Duplicate a prompt."""
+    p = (await db.execute(select(PromptConfig).where(PromptConfig.id == prompt_id))).scalar_one_or_none()
+    if not p:
+        raise HTTPException(404, "Prompt not found")
+    copy = PromptConfig(
+        user_id=current_user.id, prompt_key=f"custom.{uuid.uuid4().hex[:8]}",
+        prompt_text=p.prompt_text, category=p.category, pipeline_stage=p.pipeline_stage,
+        variables=p.variables, is_active=True, seed_version=0,
+        display_name=f"Copy of {p.display_name}", description=p.description,
+        icon_name=p.icon_name, sort_order=p.sort_order + 1,
+    )
+    db.add(copy)
+    await db.flush()
+    return _to_response(copy, is_overridden=True)
+
+
+@router.post("/by-id/{prompt_id}/revert")
+async def revert_prompt(
+    prompt_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Revert user override to system default."""
+    p = (await db.execute(
+        select(PromptConfig).where(PromptConfig.id == prompt_id, PromptConfig.user_id == current_user.id)
+    )).scalar_one_or_none()
+    if not p:
+        raise HTTPException(404, "User override not found")
+    # Find system version
+    sys_p = (await db.execute(
+        select(PromptConfig).where(PromptConfig.prompt_key == p.prompt_key, PromptConfig.user_id.is_(None))
+    )).scalar_one_or_none()
+    if sys_p:
+        await db.delete(p)
+        return _to_response(sys_p, is_overridden=False)
+    raise HTTPException(400, "No system default to revert to")
+
+
+@router.get("/export/xlsx")
+async def export_prompts(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export all prompts to Excel."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from fastapi.responses import StreamingResponse
+    from io import BytesIO
+    from datetime import datetime
+
+    prompts = (await db.execute(
+        select(PromptConfig).where(or_(PromptConfig.user_id == current_user.id, PromptConfig.user_id.is_(None)))
+        .order_by(PromptConfig.category, PromptConfig.sort_order)
+    )).scalars().all()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "All Prompts"
+
+    # Header
+    headers = ["Prompt Key", "Display Name", "Category", "Pipeline Stage", "Active", "Description", "Prompt Text", "Variables", "Sort Order"]
+    header_fill = PatternFill(start_color="00338D", end_color="00338D", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True, size=11)
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.fill = header_fill
+        cell.font = header_font
+
+    for i, p in enumerate(prompts, 2):
+        ws.cell(row=i, column=1, value=p.prompt_key)
+        ws.cell(row=i, column=2, value=p.display_name)
+        ws.cell(row=i, column=3, value=p.category)
+        ws.cell(row=i, column=4, value=p.pipeline_stage)
+        ws.cell(row=i, column=5, value="Yes" if p.is_active else "No")
+        ws.cell(row=i, column=6, value=p.description or "")
+        ws.cell(row=i, column=7, value=p.prompt_text)
+        ws.cell(row=i, column=8, value=str(p.variables) if p.variables else "")
+        ws.cell(row=i, column=9, value=p.sort_order)
+
+    ws.column_dimensions["A"].width = 30
+    ws.column_dimensions["B"].width = 30
+    ws.column_dimensions["G"].width = 80
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = f"Prompts_Export_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
 
 @router.post("/test")

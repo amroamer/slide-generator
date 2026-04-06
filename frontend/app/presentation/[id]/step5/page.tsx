@@ -2,6 +2,7 @@
 
 import { SlideRenderer } from "@/components/slides/slide-renderer";
 import api from "@/lib/api";
+import { usePipeline } from "@/lib/pipeline-context";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -30,13 +31,25 @@ export default function Step5Page() {
   const [format, setFormat] = useState<ExportFormat>("pptx");
   const [includeNotes, setIncludeNotes] = useState(false);
   const [brandColors, setBrandColors] = useState<{ primary: string; accent: string }>({ primary: "#00338D", accent: "#0091DA" });
+  const { hasContent, hasInput, loaded: pipelineLoaded, refreshPipeline: refreshPipe } = usePipeline();
 
   const load = useCallback(async () => {
+    if (!pipelineLoaded) return;
+
+    if (!hasContent) {
+      setSlides([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data } = await api.get(`/presentations/${presId}/slides`);
       setSlides(data);
       setSelected(new Set(data.map((s: Slide) => s.slide_id)));
-      // Load brand profile
+    } catch { setSlides([]); }
+
+    // Load brand profile (only if input exists)
+    if (hasInput) {
       try {
         const { data: input } = await api.get(`/presentations/${presId}/input`);
         if (input.brand_profile_id) {
@@ -44,10 +57,12 @@ export default function Step5Page() {
           setBrandColors({ primary: bp.primary_color, accent: bp.secondary_color });
         }
       } catch {}
-    } catch {}
-    finally { setLoading(false); }
-  }, [presId]);
+    }
 
+    setLoading(false);
+  }, [presId, pipelineLoaded, hasContent, hasInput]);
+
+  useEffect(() => { refreshPipe(); }, [refreshPipe]);
   useEffect(() => { load(); }, [load]);
 
   function toggleSlide(sid: string) {
