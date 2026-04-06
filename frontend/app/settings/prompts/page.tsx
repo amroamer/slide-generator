@@ -183,6 +183,16 @@ export default function PromptsPage() {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Import state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importStep, setImportStep] = useState<"upload" | "preview" | "importing">("upload");
+  const [importParsing, setImportParsing] = useState(false);
+  const [importPreview, setImportPreview] = useState<{ summary: any; rows: any[] } | null>(null);
+  const [importChecked, setImportChecked] = useState<Set<number>>(new Set());
+  const [importApplying, setImportApplying] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; updated: number } | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+
   /* --- Fetch prompts --- */
   const fetchPrompts = useCallback(async () => {
     try {
@@ -341,6 +351,63 @@ export default function PromptsPage() {
     }
   }
 
+  function openImportModal() {
+    setShowImportModal(true);
+    setImportStep("upload");
+    setImportPreview(null);
+    setImportChecked(new Set());
+    setImportResult(null);
+  }
+
+  async function handleImportFile(file: File) {
+    setImportParsing(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const { data } = await api.post("/prompts/import/preview", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setImportPreview(data);
+      // Auto-check all non-error rows
+      const checked = new Set<number>();
+      data.rows.forEach((r: any, i: number) => { if (r.action !== "error" && r.action !== "skip") checked.add(i); });
+      setImportChecked(checked);
+      setImportStep("preview");
+    } catch (err) {
+      console.error("Import parse failed:", err);
+    } finally {
+      setImportParsing(false);
+    }
+  }
+
+  async function handleImportApply() {
+    if (!importPreview) return;
+    setImportApplying(true);
+    try {
+      const selectedRows = importPreview.rows.filter((_: any, i: number) => importChecked.has(i)).map((r: any) => r.data);
+      const { data } = await api.post("/prompts/import/apply", { rows: selectedRows });
+      setImportResult(data);
+      setImportStep("importing");
+      await fetchPrompts();
+    } catch (err) {
+      console.error("Import apply failed:", err);
+    } finally {
+      setImportApplying(false);
+    }
+  }
+
+  async function handleDownloadTemplate() {
+    try {
+      const { data } = await api.get("/prompts/import/template", { responseType: "blob" });
+      const url = URL.createObjectURL(new Blob([data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Prompt_Import_Template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {}
+  }
+
   /* --- Toggle active --- */
   function toggleActive() {
     setDraft((prev) => ({ ...prev, is_active: !currentActive }));
@@ -449,6 +516,13 @@ export default function PromptsPage() {
           >
             <DownloadIcon />
             Export
+          </button>
+          <button
+            onClick={openImportModal}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+            Import
           </button>
         </div>
       </div>
@@ -684,6 +758,81 @@ export default function PromptsPage() {
         setDraft({});
         setShowAddModal(false);
       }} />}
+
+    {/* Import Modal */}
+    {showImportModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="relative w-full max-w-2xl mx-4 rounded-xl bg-white shadow-2xl max-h-[80vh] flex flex-col">
+          <div className="flex items-center justify-between border-b px-6 py-4">
+            <h3 className="text-lg font-semibold text-gray-900">Import Prompts from Excel</h3>
+            <button onClick={() => setShowImportModal(false)} className="text-gray-400 hover:text-gray-600">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            {importStep === "upload" && (
+              <div className="space-y-4">
+                <div onClick={() => importFileRef.current?.click()} className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50/60 py-12 hover:border-blue-400 hover:bg-blue-50/30 transition-all">
+                  {importParsing ? (<><SpinnerSmall /><span className="text-sm text-gray-500">Parsing...</span></>) : (
+                    <><svg className="h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                    <span className="text-sm text-gray-600">Click to upload .xlsx file</span><span className="text-xs text-gray-400">Max 5 MB</span></>
+                  )}
+                </div>
+                <input ref={importFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); }} />
+                <button onClick={handleDownloadTemplate} className="text-xs text-blue-600 hover:underline">Download blank template</button>
+              </div>
+            )}
+            {importStep === "preview" && importPreview && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 rounded-lg bg-gray-50 px-4 py-3 flex-wrap">
+                  <span className="text-sm font-medium text-gray-700">{importPreview.summary.total} prompts:</span>
+                  {importPreview.summary.create > 0 && <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">{importPreview.summary.create} new</span>}
+                  {importPreview.summary.update > 0 && <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">{importPreview.summary.update} updates</span>}
+                  {importPreview.summary.skip > 0 && <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">{importPreview.summary.skip} unchanged</span>}
+                  {importPreview.summary.error > 0 && <span className="rounded bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">{importPreview.summary.error} errors</span>}
+                </div>
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b bg-gray-50">
+                      <th className="w-8 px-3 py-2"><input type="checkbox" checked={importChecked.size > 0} onChange={(e) => { if (e.target.checked) { const a = new Set<number>(); importPreview.rows.forEach((r: any, i: number) => { if (r.action !== "error" && r.action !== "skip") a.add(i); }); setImportChecked(a); } else setImportChecked(new Set()); }} className="rounded" /></th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Key</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Name</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Action</th>
+                    </tr></thead>
+                    <tbody>{importPreview.rows.map((row: any, i: number) => (
+                      <tr key={i} className={"border-b " + (row.action === "error" ? "bg-rose-50/50" : "")}>
+                        <td className="px-3 py-2"><input type="checkbox" disabled={row.action === "error" || row.action === "skip"} checked={importChecked.has(i)} onChange={() => { const n = new Set(importChecked); n.has(i) ? n.delete(i) : n.add(i); setImportChecked(n); }} className="rounded" /></td>
+                        <td className="px-3 py-2 font-mono text-[11px] text-gray-700">{row.prompt_key}</td>
+                        <td className="px-3 py-2 text-xs text-gray-600">{row.display_name}</td>
+                        <td className="px-3 py-2"><span className={"rounded px-2 py-0.5 text-[10px] font-semibold uppercase " + (row.action === "create" ? "bg-emerald-100 text-emerald-700" : row.action === "update" ? "bg-amber-100 text-amber-700" : row.action === "skip" ? "bg-gray-100 text-gray-500" : "bg-rose-100 text-rose-700")}>{row.action}</span></td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {importStep === "importing" && importResult && (
+              <div className="flex flex-col items-center gap-3 py-12">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
+                  <svg className="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                </div>
+                <p className="text-lg font-semibold text-gray-900">Import Complete</p>
+                <p className="text-sm text-gray-500">{importResult.created} created, {importResult.updated} updated</p>
+                <button onClick={() => setShowImportModal(false)} className="mt-4 rounded-lg bg-[#00338D] px-5 py-2 text-sm font-medium text-white hover:bg-[#002266]">Done</button>
+              </div>
+            )}
+          </div>
+          {importStep === "preview" && (
+            <div className="flex items-center justify-between border-t px-6 py-4">
+              <button onClick={() => { setImportStep("upload"); setImportPreview(null); }} className="text-sm text-gray-500 hover:text-gray-700">Back</button>
+              <button onClick={handleImportApply} disabled={importApplying || importChecked.size === 0} className="rounded-lg bg-[#00338D] px-5 py-2 text-sm font-medium text-white hover:bg-[#002266] disabled:bg-gray-300">
+                {importApplying ? <SpinnerSmall /> : "Import Selected"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
     </div>
   );
 }
