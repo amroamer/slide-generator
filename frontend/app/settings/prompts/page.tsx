@@ -364,7 +364,7 @@ export default function PromptsPage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const { data } = await api.post("/prompts/import/preview", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      const { data } = await api.post("/prompts/import/preview", fd);
       setImportPreview(data);
       // Auto-check all non-error rows
       const checked = new Set<number>();
