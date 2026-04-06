@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html dir="{{ 'rtl' if is_rtl else 'ltr' }}">
+<head>
+<meta charset="utf-8">
+<style>
+@page { size: 13.333in 7.5in landscape; margin: 0; }
+body { margin: 0; padding: 0; font-family: {{ (brand.font_body if brand) or 'Arial' }}, 'Noto Sans Arabic', sans-serif; }
+.slide-page { page-break-after: always; width: 13.333in; height: 7.5in; position: relative; overflow: hidden; box-sizing: border-box; }
+.slide-page:last-child { page-break-after: avoid; }
+.slide-bg { position: absolute; inset: 0; }
+.slide-content { position: relative; z-index: 1; padding: 0.6in 0.8in; height: 100%; box-sizing: border-box; }
+h1.slide-title { font-size: 32pt; font-weight: 700; color: {{ (brand.text_color if brand) or '#1F2937' }}; margin: 0 0 0.3in 0; font-family: {{ (brand.font_heading if brand) or 'Arial' }}, sans-serif; }
+h2.slide-subtitle { font-size: 18pt; font-weight: 400; color: {{ (brand.text_color if brand) or '#6B7280' }}; margin: 0 0 0.2in 0; }
+.bullets { list-style: none; padding: 0; margin: 0; }
+.bullets li { font-size: 14pt; color: #374151; padding: 6pt 0; padding-{{ 'right' if is_rtl else 'left' }}: 20pt; position: relative; }
+.bullets li::before { content: ''; position: absolute; {{ 'right' if is_rtl else 'left' }}: 0; top: 12pt; width: 8pt; height: 8pt; background: {{ (brand.secondary_color if brand) or '#0091DA' }}; border-radius: 50%; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 11pt; }
+.data-table th { background: {{ (brand.table_header_color if brand) or (brand.primary_color if brand) or '#00338D' }}; color: {{ (brand.table_header_text_color if brand) or 'white' }}; padding: 8pt 12pt; text-align: {{ 'right' if is_rtl else 'left' }}; font-weight: 600; }
+.data-table td { padding: 6pt 12pt; border-bottom: 1pt solid #E5E7EB; color: #374151; }
+.data-table tr:nth-child(even) td { background: #F9FAFB; }
+.accent-bar { position: absolute; left: 0; top: 0; width: 8pt; height: 100%; background: {{ (brand.primary_color if brand) or '#00338D' }}; }
+.slide-number { position: absolute; bottom: 0.3in; {{ 'left' if is_rtl else 'right' }}: 0.5in; font-size: 9pt; color: #9CA3AF; }
+.section-divider { background: {{ (brand.primary_color if brand) or '#00338D' }}; display: flex; align-items: center; justify-content: center; height: 100%; }
+.section-divider h1 { color: white; font-size: 36pt; font-weight: 700; }
+.notes-page { page-break-after: always; padding: 0.5in 0.8in; font-family: Arial, sans-serif; }
+.notes-page h3 { font-size: 14pt; color: #1F2937; margin-bottom: 8pt; border-bottom: 1pt solid #E5E7EB; padding-bottom: 6pt; }
+.notes-page p { font-size: 11pt; color: #555; line-height: 1.6; }
+.two-col { display: flex; gap: 0.4in; height: calc(100% - 1in); }
+.two-col .col { flex: 1; }
+.key-takeaway { background: #EFF6FF; border-{{ 'right' if is_rtl else 'left' }}: 6pt solid {{ (brand.accent_color if brand) or '#00338D' }}; padding: 0.3in; margin-top: 0.2in; border-radius: 4pt; }
+.key-takeaway p { font-size: 16pt; color: #1E3A5F; font-weight: 600; line-height: 1.5; }
+</style>
+</head>
+<body>
+{% for slide_html in slides %}
+{{ slide_html }}
+{% endfor %}
+</body>
+</html>

@@ -1,0 +1,97 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sg-frontend
+    restart: unless-stopped
+    networks:
+      - sg-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      - NEXT_PUBLIC_API_URL=/api
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sg-backend
+    restart: unless-stopped
+    networks:
+      - sg-network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - uploads_vol:/app/uploads
+      - outputs_vol:/app/outputs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 40s
+
+  db:
+    image: postgres:16-alpine
+    container_name: sg-db
+    restart: unless-stopped
+    networks:
+      - sg-network
+    env_file:
+      - .env
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kpmg_slides} -d ${POSTGRES_DB:-slides_generator}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  nginx:
+    image: nginx:alpine
+    container_name: sg-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+      - "8443:443"
+    networks:
+      - sg-network
+    depends_on:
+      - frontend
+      - backend
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+
+  redis:
+    image: redis:7-alpine
+    container_name: sg-redis
+    restart: unless-stopped
+    networks:
+      - sg-network
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  uploads_vol:
+  outputs_vol:
+  db_data:
+  redis_data:
+
+networks:
+  sg-network:
+    driver: bridge

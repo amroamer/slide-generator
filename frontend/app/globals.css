@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-gray-200;
+  }
+  body {
+    @apply bg-gradient-to-br from-[#F8FAFC] to-[#F1F5F9] text-gray-900 antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  body.font-arabic {
+    font-family: 'Noto Sans Arabic', Arial, sans-serif;
+  }
+  [dir="rtl"] .rtl\:flip {
+    transform: scaleX(-1);
+  }
+  ::selection {
+    @apply bg-kpmg-light-blue/20 text-kpmg-blue;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#00338D] to-[#0055B8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:shadow-lg hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:bg-gray-50 hover:shadow active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-all duration-200 hover:bg-gray-100 hover:text-gray-900;
+  }
+  .input-field {
+    @apply h-11 w-full rounded-lg border border-gray-300 bg-gray-50 px-4 text-sm text-gray-900 transition-all duration-200 placeholder:text-gray-400 focus:border-kpmg-light-blue focus:bg-white focus:outline-none focus:ring-2 focus:ring-kpmg-light-blue/20;
+  }
+  .card {
+    @apply rounded-xl border border-gray-200 bg-white shadow-card transition-all duration-200;
+  }
+  .card-hover {
+    @apply rounded-xl border border-gray-200 bg-white shadow-card transition-all duration-200 hover:shadow-card-hover hover:-translate-y-[1px];
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium;
+  }
+  .skeleton {
+    @apply animate-shimmer rounded-lg bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 bg-[length:200%_100%];
+  }
+  .pill-loading {
+    @apply relative overflow-hidden;
+  }
+  .pill-loading::after {
+    content: '';
+    @apply absolute top-0 h-full w-full;
+    left: -100%;
+    background: linear-gradient(90deg, transparent, rgba(59,130,246,0.08), transparent);
+    animation: pill-shimmer 1.5s infinite;
+  }
+  @keyframes pill-shimmer {
+    100% { left: 100%; }
+  }
+}

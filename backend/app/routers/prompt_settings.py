@@ -1,0 +1,254 @@
+import time
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app.models.prompt_config import PromptConfig
+from app.models.user import User
+from app.schemas.prompt import (
+    PromptConfigCreate,
+    PromptConfigResponse,
+    PromptConfigUpdate,
+    PromptTestRequest,
+    PromptTestResponse,
+)
+from app.services.auth_service import get_current_user
+from app.services.prompt_service import SafeDict, get_quick_actions
+
+router = APIRouter(prefix="/api/prompts", tags=["prompts"])
+
+
+def _to_response(p: PromptConfig, is_overridden: bool = False) -> dict:
+    return {
+        "id": p.id,
+        "prompt_key": p.prompt_key,
+        "prompt_text": p.prompt_text,
+        "category": p.category,
+        "variables": p.variables,
+        "is_active": p.is_active,
+        "is_system": p.user_id is None,
+        "is_overridden": is_overridden,
+        "display_name": p.display_name,
+        "description": p.description,
+        "icon_name": p.icon_name,
+        "sort_order": p.sort_order,
+        "created_at": p.created_at,
+        "updated_at": p.updated_at,
+    }
+
+
+@router.get("")
+async def list_prompts(
+    category: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all prompts — merged view with user overrides."""
+    # Get system defaults
+    sys_q = select(PromptConfig).where(PromptConfig.user_id.is_(None))
+    if category:
+        sys_q = sys_q.where(PromptConfig.category == category)
+    sys_result = await db.execute(sys_q.order_by(PromptConfig.category, PromptConfig.sort_order))
+    system_prompts = {p.prompt_key: p for p in sys_result.scalars().all()}
+
+    # Get user overrides
+    usr_q = select(PromptConfig).where(PromptConfig.user_id == current_user.id)
+    if category:
+        usr_q = usr_q.where(PromptConfig.category == category)
+    usr_result = await db.execute(usr_q.order_by(PromptConfig.sort_order))
+    user_prompts = {p.prompt_key: p for p in usr_result.scalars().all()}
+
+    # Merge
+    items = []
+    seen = set()
+    for key, sys_p in system_prompts.items():
+        usr_p = user_prompts.get(key)
+        if usr_p:
+            items.append(_to_response(usr_p, is_overridden=True))
+        else:
+            items.append(_to_response(sys_p, is_overridden=False))
+        seen.add(key)
+
+    # Custom user prompts not in system defaults
+    for key, usr_p in user_prompts.items():
+        if key not in seen:
+            items.append(_to_response(usr_p, is_overridden=True))
+
+    return items
+
+
+@router.get("/quick-actions/{category}")
+async def list_quick_actions(
+    category: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get active quick actions for a category (e.g., quick_action.planner)."""
+    return await get_quick_actions(category, current_user.id, db)
+
+
+@router.get("/{prompt_key}")
+async def get_prompt(
+    prompt_key: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get effective prompt for current user."""
+    result = await db.execute(
+        select(PromptConfig).where(
+            PromptConfig.prompt_key == prompt_key,
+            or_(PromptConfig.user_id == current_user.id, PromptConfig.user_id.is_(None)),
+        ).order_by(PromptConfig.user_id.desc().nulls_last()).limit(1)
+    )
+    p = result.scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+    has_override = p.user_id is not None
+    return _to_response(p, is_overridden=has_override)
+
+
+@router.post("")
+async def create_prompt(
+    body: PromptConfigCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a user override or custom prompt."""
+    prompt_key = body.prompt_key or f"custom.{current_user.id.hex[:8]}.{uuid.uuid4().hex[:8]}"
+    p = PromptConfig(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        prompt_key=prompt_key,
+        prompt_text=body.prompt_text,
+        category=body.category,
+        variables=body.variables,
+        is_active=True,
+        seed_version=0,
+        display_name=body.display_name,
+        description=body.description,
+        icon_name=body.icon_name,
+        sort_order=99,
+    )
+    db.add(p)
+    await db.flush()
+    await db.refresh(p)
+    return _to_response(p, is_overridden=True)
+
+
+@router.put("/{prompt_key}")
+async def update_prompt(
+    prompt_key: str,
+    body: PromptConfigUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update or create user override for a prompt."""
+    # Check if user already has an override
+    result = await db.execute(
+        select(PromptConfig).where(
+            PromptConfig.prompt_key == prompt_key,
+            PromptConfig.user_id == current_user.id,
+        )
+    )
+    user_prompt = result.scalar_one_or_none()
+
+    if user_prompt:
+        # Update existing override
+        if body.prompt_text is not None:
+            user_prompt.prompt_text = body.prompt_text
+        if body.is_active is not None:
+            user_prompt.is_active = body.is_active
+        if body.display_name is not None:
+            user_prompt.display_name = body.display_name
+        if body.description is not None:
+            user_prompt.description = body.description
+        if body.icon_name is not None:
+            user_prompt.icon_name = body.icon_name
+        await db.flush()
+        await db.refresh(user_prompt)
+        return _to_response(user_prompt, is_overridden=True)
+    else:
+        # Create new override by copying from system default
+        sys_result = await db.execute(
+            select(PromptConfig).where(
+                PromptConfig.prompt_key == prompt_key,
+                PromptConfig.user_id.is_(None),
+            )
+        )
+        sys_prompt = sys_result.scalar_one_or_none()
+        if not sys_prompt:
+            raise HTTPException(status_code=404, detail="System prompt not found")
+
+        override = PromptConfig(
+            id=uuid.uuid4(),
+            user_id=current_user.id,
+            prompt_key=prompt_key,
+            prompt_text=body.prompt_text or sys_prompt.prompt_text,
+            category=sys_prompt.category,
+            variables=sys_prompt.variables,
+            is_active=body.is_active if body.is_active is not None else True,
+            seed_version=0,
+            display_name=body.display_name or sys_prompt.display_name,
+            description=body.description or sys_prompt.description,
+            icon_name=body.icon_name or sys_prompt.icon_name,
+            sort_order=sys_prompt.sort_order,
+        )
+        db.add(override)
+        await db.flush()
+        await db.refresh(override)
+        return _to_response(override, is_overridden=True)
+
+
+@router.delete("/{prompt_key}")
+async def reset_prompt(
+    prompt_key: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete user override, reverting to system default."""
+    result = await db.execute(
+        select(PromptConfig).where(
+            PromptConfig.prompt_key == prompt_key,
+            PromptConfig.user_id == current_user.id,
+        )
+    )
+    user_prompt = result.scalar_one_or_none()
+    if not user_prompt:
+        raise HTTPException(status_code=404, detail="No user override found")
+    await db.delete(user_prompt)
+    return {"status": "reset", "prompt_key": prompt_key}
+
+
+@router.post("/test")
+async def test_prompt(
+    body: PromptTestRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Test a prompt with variable substitution and optional LLM execution."""
+    rendered = body.prompt_text.format_map(SafeDict(body.variables))
+    resp = PromptTestResponse(rendered_text=rendered)
+
+    if body.run_llm:
+        try:
+            from app.llm.factory import get_provider
+            provider = get_provider(
+                provider_name=body.llm_provider or "ollama",
+                model=body.llm_model,
+            )
+            start = time.monotonic()
+            result = await provider.generate(
+                system_prompt="You are a test assistant.",
+                user_prompt=rendered,
+                json_mode=False,
+            )
+            latency = (time.monotonic() - start) * 1000
+            resp.llm_response = result.get("text", str(result))
+            resp.latency_ms = round(latency, 1)
+        except Exception as e:
+            resp.llm_response = f"Error: {e}"
+
+    return resp

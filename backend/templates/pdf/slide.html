@@ -1,0 +1,190 @@
+{# Single slide template — receives: slide, content, design, brand, slide_number, total_slides, include_notes, is_rtl, layout #}
+
+{% set bg_color = design.get('backgroundColor', '#FFFFFF') if design else '#FFFFFF' %}
+
+{% if layout == 'title_slide' %}
+{# ── Title Slide ── #}
+<div class="slide-page" style="background:{{ bg_color }};">
+  <div class="accent-bar"></div>
+  <div class="slide-content" style="display:flex;flex-direction:column;justify-content:center;">
+    <h1 class="slide-title" style="font-size:40pt;">{{ content.get('title', slide.title) }}</h1>
+    {% if content.get('subtitle') %}
+    <h2 class="slide-subtitle">{{ content['subtitle'] }}</h2>
+    {% endif %}
+    {% if content.get('author') %}
+    <p style="font-size:12pt;color:#6B7280;margin-top:0.3in;">{{ content['author'] }}</p>
+    {% endif %}
+    {% if content.get('date') %}
+    <p style="font-size:11pt;color:#9CA3AF;">{{ content['date'] }}</p>
+    {% endif %}
+  </div>
+  <div class="slide-number">{{ slide_number }} / {{ total_slides }}</div>
+</div>
+
+{% elif layout == 'section_divider' %}
+{# ── Section Divider ── #}
+<div class="slide-page">
+  <div class="section-divider">
+    <h1>{{ content.get('title', slide.title) }}</h1>
+  </div>
+  <div class="slide-number" style="color:rgba(255,255,255,0.5);">{{ slide_number }} / {{ total_slides }}</div>
+</div>
+
+{% elif layout == 'title_table' %}
+{# ── Title + Table ── #}
+<div class="slide-page" style="background:{{ bg_color }};">
+  <div class="accent-bar"></div>
+  <div class="slide-content">
+    <h1 class="slide-title">{{ content.get('title', slide.title) }}</h1>
+    {% set table = content.get('table') or content.get('data') %}
+    {% if table %}
+      {% set headers = table.get('headers', []) %}
+      {% set rows = table.get('rows', []) %}
+      <table class="data-table">
+        {% if headers %}
+        <thead><tr>
+          {% for h in headers %}<th>{{ h }}</th>{% endfor %}
+        </tr></thead>
+        {% endif %}
+        <tbody>
+        {% for row in rows %}
+          <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+  <div class="slide-number">{{ slide_number }} / {{ total_slides }}</div>
+</div>
+
+{% elif layout == 'title_chart' %}
+{# ── Title + Chart (rendered as data-table fallback) ── #}
+<div class="slide-page" style="background:{{ bg_color }};">
+  <div class="accent-bar"></div>
+  <div class="slide-content">
+    <h1 class="slide-title">{{ content.get('title', slide.title) }}</h1>
+    <p style="font-size:10pt;color:#9CA3AF;margin-bottom:8pt;">[Chart data]</p>
+    {% set chart = content.get('chart') or content.get('chartData') or content.get('data') %}
+    {% if chart %}
+      {% if chart is mapping %}
+        {% set labels = chart.get('labels', []) %}
+        {% set datasets = chart.get('datasets', []) %}
+        <table class="data-table">
+          <thead><tr>
+            <th>Label</th>
+            {% for ds in datasets %}<th>{{ ds.get('label', 'Series ' ~ loop.index) }}</th>{% endfor %}
+          </tr></thead>
+          <tbody>
+          {% for label in labels %}
+            <tr>
+              <td>{{ label }}</td>
+              {% for ds in datasets %}<td>{{ ds.get('data', [])[loop.index0] if loop.index0 < ds.get('data', [])|length else '' }}</td>{% endfor %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% elif chart is iterable and chart is not string %}
+        <table class="data-table">
+          <tbody>
+          {% for item in chart %}
+            <tr>
+              {% if item is mapping %}
+                {% for k, v in item.items() %}<td><strong>{{ k }}:</strong> {{ v }}</td>{% endfor %}
+              {% else %}
+                <td>{{ item }}</td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    {% endif %}
+  </div>
+  <div class="slide-number">{{ slide_number }} / {{ total_slides }}</div>
+</div>
+
+{% elif layout == 'two_column' %}
+{# ── Two Column ── #}
+<div class="slide-page" style="background:{{ bg_color }};">
+  <div class="accent-bar"></div>
+  <div class="slide-content">
+    <h1 class="slide-title">{{ content.get('title', slide.title) }}</h1>
+    <div class="two-col">
+      <div class="col">
+        {% if content.get('left') %}
+          {% if content['left'] is string %}
+            <p style="font-size:13pt;color:#374151;line-height:1.6;">{{ content['left'] }}</p>
+          {% elif content['left'] is iterable %}
+            <ul class="bullets">
+              {% for item in content['left'] %}<li>{{ item }}</li>{% endfor %}
+            </ul>
+          {% endif %}
+        {% endif %}
+      </div>
+      <div class="col">
+        {% if content.get('right') %}
+          {% if content['right'] is string %}
+            <p style="font-size:13pt;color:#374151;line-height:1.6;">{{ content['right'] }}</p>
+          {% elif content['right'] is iterable %}
+            <ul class="bullets">
+              {% for item in content['right'] %}<li>{{ item }}</li>{% endfor %}
+            </ul>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="slide-number">{{ slide_number }} / {{ total_slides }}</div>
+</div>
+
+{% elif layout == 'key_takeaway' %}
+{# ── Key Takeaway ── #}
+<div class="slide-page" style="background:{{ bg_color }};">
+  <div class="accent-bar"></div>
+  <div class="slide-content">
+    <h1 class="slide-title">{{ content.get('title', slide.title) }}</h1>
+    {% if content.get('bullets') %}
+    <ul class="bullets">
+      {% for b in content['bullets'] %}<li>{{ b }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% set takeaway = content.get('takeaway') or content.get('key_takeaway') %}
+    {% if takeaway %}
+    <div class="key-takeaway">
+      <p>{{ takeaway }}</p>
+    </div>
+    {% endif %}
+  </div>
+  <div class="slide-number">{{ slide_number }} / {{ total_slides }}</div>
+</div>
+
+{% else %}
+{# ── Default: title_bullets ── #}
+<div class="slide-page" style="background:{{ bg_color }};">
+  <div class="accent-bar"></div>
+  <div class="slide-content">
+    <h1 class="slide-title">{{ content.get('title', slide.title) }}</h1>
+    {% if content.get('subtitle') %}
+    <h2 class="slide-subtitle">{{ content['subtitle'] }}</h2>
+    {% endif %}
+    {% set bullets = content.get('bullets') or content.get('points') or [] %}
+    {% if bullets %}
+    <ul class="bullets">
+      {% for b in bullets %}<li>{{ b }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if content.get('body') %}
+    <p style="font-size:13pt;color:#374151;line-height:1.6;margin-top:0.2in;">{{ content['body'] }}</p>
+    {% endif %}
+  </div>
+  <div class="slide-number">{{ slide_number }} / {{ total_slides }}</div>
+</div>
+{% endif %}
+
+{# ── Speaker Notes Page ── #}
+{% if include_notes and content.get('speaker_notes') %}
+<div class="notes-page">
+  <h3>Speaker Notes — Slide {{ slide_number }}: {{ content.get('title', slide.title) }}</h3>
+  <p>{{ content['speaker_notes'] }}</p>
+</div>
+{% endif %}

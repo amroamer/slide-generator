@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Environment variables (NEVER commit these)
+.env
+.env.local
+.env.production
+
+# Build outputs
+frontend/.next/
+frontend/out/
+backend/*.egg-info/
+
+# Docker volumes data (local only)
+postgres_data/
+redis_data/
+uploads/
+outputs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test outputs
+frontend/public/guide-screenshots/
+coverage/
+.pytest_cache/
+
+# Uploaded files (user data — never commit)
+backend/uploads/
+frontend/public/uploads/
+
+# Compiled
+dist/
+build/
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
