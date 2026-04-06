@@ -193,9 +193,7 @@ function ScreenshotEditor({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const { data } = await api.post("/guide/screenshots/upload", fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const { data } = await api.post("/guide/screenshots/upload", fd);
       const updated = { ...cj, image_path: data.image_path, filename: data.filename, width: data.width, height: data.height };
       onChange(updated);
       onSave(updated);

@@ -2,7 +2,6 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: "/slide-generator/api",
-  headers: { "Content-Type": "application/json" },
 });
 
 // Attach JWT from localStorage

@@ -49,7 +49,7 @@ export function FileUploadZone({ presentationId, files, onFilesChange, onPreview
     try {
       const formData = new FormData();
       Array.from(fileList).forEach((f) => formData.append("files", f));
-      const { data } = await api.post(`/presentations/${presentationId}/upload`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+      const { data } = await api.post(`/presentations/${presentationId}/upload`, formData);
       onFilesChange([...files, ...data]);
     } catch (err) { console.error("Upload failed", err); }
     finally { setUploading(false); }

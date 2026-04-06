@@ -384,16 +384,24 @@ export default function PromptsPage() {
       setImportChecked(checked);
       setImportStep("preview");
     } catch (err: any) {
+      const status = err?.response?.status;
       const detail = err?.response?.data?.detail;
+      const responseData = err?.response?.data;
       let msg: string;
       if (Array.isArray(detail)) {
-        msg = detail.map((d: any) => d.msg || JSON.stringify(d)).join("; ");
+        // FastAPI validation errors: [{loc: [...], msg: "...", type: "..."}]
+        msg = detail.map((d: any) => {
+          const field = Array.isArray(d.loc) ? d.loc.filter((l: any) => l !== "body").join(".") : "";
+          return field ? `${field}: ${d.msg}` : (d.msg || JSON.stringify(d));
+        }).join("; ");
       } else if (typeof detail === "string") {
         msg = detail;
+      } else if (responseData && typeof responseData === "object") {
+        msg = JSON.stringify(responseData);
       } else {
-        msg = `Failed to parse the Excel file (${err?.response?.status || "unknown error"})`;
+        msg = err?.message || "Unknown error";
       }
-      setImportError(msg);
+      setImportError(`Upload failed (HTTP ${status || "?"}): ${msg}`);
     } finally {
       setImportParsing(false);
     }

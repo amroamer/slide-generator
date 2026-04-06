@@ -132,7 +132,7 @@ export default function TemplatesPage() {
       const fd = new FormData();
       fd.append("file", uploadFile); fd.append("name", uploadName.trim());
       fd.append("description", uploadDesc); fd.append("color", uploadColor);
-      await api.post("/template-collections/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      await api.post("/template-collections/upload", fd);
       await loadCollections();
       setShowUpload(false); setUploadFile(null); setUploadName(""); setUploadDesc("");
     } catch (err) { console.error(err); }

@@ -560,9 +560,7 @@ export default function BrandProfileEditPage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const { data } = await api.post(`/brand-profiles/${id}/logo`, fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const { data } = await api.post(`/brand-profiles/${id}/logo`, fd);
       setField("logo_url", data.logo_url || data.url || null);
       setField("logo_path", data.logo_path || data.path || "");
       setSavedForm((prev) => ({ ...prev, logo_url: data.logo_url || data.url || null, logo_path: data.logo_path || data.path || "" }));
