@@ -1,5 +1,6 @@
 "use client";
 
+import { ChartTypeSelector } from "@/components/steps/chart-type-selector";
 import { FullscreenPreview } from "@/components/steps/fullscreen-preview";
 import { LayoutSelector } from "@/components/steps/layout-selector";
 import { SlideRenderer } from "@/components/slides/slide-renderer";
@@ -79,6 +80,23 @@ export default function Step4Page() {
   async function handleLayoutChange(slideId: string, layout: string) {
     setSlides((prev) => prev.map((s) => s.slide_id === slideId ? { ...s, layout } : s));
     try { await api.put(`/presentations/${presId}/slides/${slideId}/design`, { layout }); } catch {}
+  }
+
+  function handleChartTypeChange(slideId: string, chartType: string) {
+    setSlides((prev) => prev.map((s) => {
+      if (s.slide_id !== slideId) return s;
+      const cj = { ...s.content_json };
+      if (cj.chart_data && typeof cj.chart_data === "object") {
+        cj.chart_data = { ...cj.chart_data, chart_type: chartType };
+      }
+      return { ...s, content_json: cj };
+    }));
+    // Persist to backend
+    const slide = slides.find((s) => s.slide_id === slideId);
+    if (slide?.content_json?.chart_data) {
+      const updated = { ...slide.content_json, chart_data: { ...slide.content_json.chart_data, chart_type: chartType } };
+      api.put(`/presentations/${presId}/slides/${slideId}`, { content_json: updated }).catch(() => {});
+    }
   }
 
   async function handleRefine() {
@@ -194,8 +212,19 @@ export default function Step4Page() {
 
               <div className="mt-5">
                 <label className="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">Layout</label>
-                <LayoutSelector selected={selected.layout || "title_bullets"} onChange={(l) => handleLayoutChange(selected.slide_id, l)} />
+                <LayoutSelector selected={selected.layout || "title_bullets"} onChange={(l) => handleLayoutChange(selected.slide_id, l)} content={selected.content_json} />
               </div>
+
+              {selected.content_json?.chart_data && typeof selected.content_json.chart_data === "object" && selected.content_json.chart_data.labels && (
+                <div className="mt-4">
+                  <label className="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">Chart Type</label>
+                  <ChartTypeSelector
+                    selected={selected.content_json.chart_data.chart_type || "bar"}
+                    onChange={(ct) => handleChartTypeChange(selected.slide_id, ct)}
+                    chartData={selected.content_json.chart_data}
+                  />
+                </div>
+              )}
 
               <div className="mt-4 flex gap-2">
                 <input value={refineText} onChange={(e) => setRefineText(e.target.value)}

@@ -35,3 +35,12 @@ class PlanRegenerateRequest(BaseModel):
 
 class PlanUpdateRequest(BaseModel):
     plan_json: dict
+
+
+class PlanGenerateProgressiveResponse(BaseModel):
+    task_id: str
+    status: str
+
+
+class PlanRetrySectionRequest(BaseModel):
+    section_id: str

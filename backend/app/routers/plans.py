@@ -10,9 +10,11 @@ from app.models.presentation_plan import PresentationPlan
 from app.models.user import User
 from app.routers.presentations import _get_presentation
 from app.schemas.plan import (
+    PlanGenerateProgressiveResponse,
     PlanRefineRequest,
     PlanRegenerateRequest,
     PlanResponse,
+    PlanRetrySectionRequest,
     PlanUpdateRequest,
     PlanVersionSummary,
 )
@@ -22,6 +24,8 @@ from app.services.planner_agent import (
     refine_section,
     refine_slide,
     regenerate_full_plan,
+    retry_section,
+    start_progressive_plan,
 )
 
 router = APIRouter(prefix="/api/presentations", tags=["plans"])
@@ -60,6 +64,43 @@ async def api_generate_plan(
     await record_step_change(presentation_id, "plan", db)
     plan_result = await db.execute(
         select(PresentationPlan).where(PresentationPlan.id == uuid.UUID(result["id"]))
+    )
+    return plan_result.scalar_one()
+
+
+@router.post(
+    "/{presentation_id}/plan/generate-progressive",
+    response_model=PlanGenerateProgressiveResponse,
+    status_code=202,
+)
+async def api_generate_plan_progressive(
+    presentation_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Start progressive plan generation (background task with polling)."""
+    await _get_presentation(presentation_id, current_user, db)
+    task_id, _ = await start_progressive_plan(presentation_id, current_user, db)
+    return {"task_id": task_id, "status": "started"}
+
+
+@router.post("/{presentation_id}/plan/retry-section", response_model=PlanResponse)
+async def api_retry_section(
+    presentation_id: uuid.UUID,
+    body: PlanRetrySectionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retry generating a single failed section."""
+    await _get_presentation(presentation_id, current_user, db)
+    result = await retry_section(
+        presentation_id, body.section_id, current_user, db
+    )
+    await record_step_change(presentation_id, "plan", db)
+    plan_result = await db.execute(
+        select(PresentationPlan).where(
+            PresentationPlan.id == uuid.UUID(result["id"])
+        )
     )
     return plan_result.scalar_one()
 
