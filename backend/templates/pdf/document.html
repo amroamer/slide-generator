@@ -11,13 +11,23 @@ body { margin: 0; padding: 0; font-family: {{ (brand.font_body if brand) or 'Ari
 .slide-content { position: relative; z-index: 1; padding: 0.6in 0.8in; height: 100%; box-sizing: border-box; }
 h1.slide-title { font-size: 32pt; font-weight: 700; color: {{ (brand.text_color if brand) or '#1F2937' }}; margin: 0 0 0.3in 0; font-family: {{ (brand.font_heading if brand) or 'Arial' }}, sans-serif; }
 h2.slide-subtitle { font-size: 18pt; font-weight: 400; color: {{ (brand.text_color if brand) or '#6B7280' }}; margin: 0 0 0.2in 0; }
+/* Styled bullet lists */
 .bullets { list-style: none; padding: 0; margin: 0; }
-.bullets li { font-size: 14pt; color: #374151; padding: 6pt 0; padding-{{ 'right' if is_rtl else 'left' }}: 20pt; position: relative; }
+.bullets li { font-size: 14pt; color: #374151; padding: 6pt 0; padding-{{ 'right' if is_rtl else 'left' }}: 20pt; position: relative; line-height: 1.5; }
 .bullets li::before { content: ''; position: absolute; {{ 'right' if is_rtl else 'left' }}: 0; top: 12pt; width: 8pt; height: 8pt; background: {{ (brand.secondary_color if brand) or '#0091DA' }}; border-radius: 50%; }
-.data-table { width: 100%; border-collapse: collapse; font-size: 11pt; }
+/* Data tables */
+.data-table { width: 100%; border-collapse: collapse; font-size: 11pt; margin-top: 0.15in; }
 .data-table th { background: {{ (brand.table_header_color if brand) or (brand.primary_color if brand) or '#00338D' }}; color: {{ (brand.table_header_text_color if brand) or 'white' }}; padding: 8pt 12pt; text-align: {{ 'right' if is_rtl else 'left' }}; font-weight: 600; }
 .data-table td { padding: 6pt 12pt; border-bottom: 1pt solid #E5E7EB; color: #374151; }
 .data-table tr:nth-child(even) td { background: #F9FAFB; }
+/* RAG status colors for table cells */
+.data-table td.rag-green { background: #D1FAE5; color: #065F46; font-weight: 600; text-align: center; border-radius: 3pt; }
+.data-table td.rag-amber { background: #FEF3C7; color: #92400E; font-weight: 600; text-align: center; border-radius: 3pt; }
+.data-table td.rag-red { background: #FEE2E2; color: #991B1B; font-weight: 600; text-align: center; border-radius: 3pt; }
+/* Chart images */
+.chart-container { text-align: center; margin-top: 0.1in; }
+.chart-image { max-width: 100%; max-height: 4.8in; object-fit: contain; }
+/* Layout elements */
 .accent-bar { position: absolute; left: 0; top: 0; width: 8pt; height: 100%; background: {{ (brand.primary_color if brand) or '#00338D' }}; }
 .slide-number { position: absolute; bottom: 0.3in; {{ 'left' if is_rtl else 'right' }}: 0.5in; font-size: 9pt; color: #9CA3AF; }
 .section-divider { background: {{ (brand.primary_color if brand) or '#00338D' }}; display: flex; align-items: center; justify-content: center; height: 100%; }
@@ -28,7 +38,7 @@ h2.slide-subtitle { font-size: 18pt; font-weight: 400; color: {{ (brand.text_col
 .two-col { display: flex; gap: 0.4in; height: calc(100% - 1in); }
 .two-col .col { flex: 1; }
 .key-takeaway { background: #EFF6FF; border-{{ 'right' if is_rtl else 'left' }}: 6pt solid {{ (brand.accent_color if brand) or '#00338D' }}; padding: 0.3in; margin-top: 0.2in; border-radius: 4pt; }
-.key-takeaway p { font-size: 16pt; color: #1E3A5F; font-weight: 600; line-height: 1.5; }
+.key-takeaway p { font-size: 16pt; color: #1E3A5F; font-weight: 600; line-height: 1.5; margin: 0; }
 </style>
 </head>
 <body>
