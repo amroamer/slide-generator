@@ -1,3 +1,4 @@
+import ast
 import base64
 import io
 import os
@@ -123,6 +124,51 @@ def _render_chart_to_base64(chart_data: dict, brand: dict | None = None) -> str 
         if len(datasets) > 1:
             ax.legend(fontsize=9)
 
+    elif chart_type in ("gantt",):
+        # Gantt: labels are tasks, datasets[0] = start, datasets[1] = end (or single = duration)
+        has_start_end = len(datasets) >= 2
+        y = range(len(labels))
+        for i, label in enumerate(labels):
+            start = float(datasets[0].get("values", datasets[0].get("data", []))[i] or 0) if has_start_end else 0
+            if has_start_end:
+                end = float(datasets[1].get("values", datasets[1].get("data", []))[i] or 0)
+                duration = end - start
+            else:
+                vals = datasets[0].get("values") or datasets[0].get("data") or []
+                try:
+                    duration = float(vals[i])
+                except (ValueError, TypeError, IndexError):
+                    duration = 0
+            color = SERIES_COLORS[i % len(SERIES_COLORS)]
+            ax.barh(i, duration, left=start, height=0.5, color=color)
+        ax.set_yticks(list(y))
+        ax.set_yticklabels(labels, fontsize=9)
+        ax.tick_params(axis="x", labelsize=9)
+        ax.grid(axis="x", alpha=0.3)
+        ax.invert_yaxis()
+
+    elif chart_type in ("timeline",):
+        # Timeline: render as milestones along an axis
+        values = []
+        for v in (datasets[0].get("values") or datasets[0].get("data") or []):
+            try:
+                values.append(float(v))
+            except (ValueError, TypeError):
+                values.append(0)
+        for i, (label, val) in enumerate(zip(labels, values)):
+            color = SERIES_COLORS[i % len(SERIES_COLORS)]
+            ax.scatter(val, 0, s=120, color=color, zorder=3, edgecolors="white", linewidths=1.5)
+            offset = 12 if i % 2 == 0 else -18
+            ax.annotate(label, (val, 0), textcoords="offset points",
+                        xytext=(0, offset), ha="center", fontsize=8, color=color, fontweight="bold")
+        ax.axhline(y=0, color="#D1D5DB", linewidth=2, zorder=1)
+        ax.set_ylim(-1, 1)
+        ax.tick_params(axis="x", labelsize=9)
+        ax.get_yaxis().set_visible(False)
+        ax.spines["left"].set_visible(False)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
     elif chart_type in ("horizontal_bar",):
         y = range(len(labels))
         bar_height = 0.8 / max(len(datasets), 1)
@@ -234,20 +280,49 @@ async def generate_pdf(presentation_id, slide_ids, include_notes, db: AsyncSessi
 
     slides_html = []
     for idx, slide in enumerate(slides):
-        content = slide.content_json or {}
+        content = dict(slide.content_json or {})  # shallow copy so we can mutate
         design = slide.design_json or {}
+
+        # Normalize: extract fields the LLM may have nested inside body
+        body = content.get("body")
+        if isinstance(body, str):
+            # Body is a string — try to parse as dict, otherwise wrap as paragraph
+            try:
+                body = ast.literal_eval(body)
+                content["body"] = body
+            except Exception:
+                content["body"] = {"type": "paragraphs", "content": [body]}
+                body = content["body"]
+        if isinstance(body, list):
+            content["body"] = {"type": "bullets", "content": body}
+            body = content["body"]
+        if isinstance(body, dict) and "content" in body:
+            for field in ("key_takeaway", "speaker_notes", "chart_data", "data_table"):
+                if not content.get(field) and body.get(field):
+                    content[field] = body[field]
+
+        # Ensure bullets are accessible at top level for the template
+        body_obj = content.get("body") if isinstance(content.get("body"), dict) else {}
+        if not content.get("bullets") and not content.get("points"):
+            body_content = body_obj.get("content", [])
+            if isinstance(body_content, list) and body_content:
+                content["bullets"] = body_content
 
         # Pre-render chart as base64 PNG image
         chart_image = None
         chart_data = content.get("chart_data")
         if chart_data and chart_data.get("labels") and chart_data.get("datasets"):
-            chart_image = _render_chart_to_base64(chart_data, brand_dict)
+            try:
+                chart_image = _render_chart_to_base64(chart_data, brand_dict)
+            except Exception:
+                chart_image = None  # fallback to table in template
 
         # Detect layout — auto-detect chart/table if present
+        data_table = content.get("data_table")
         layout = slide.layout or content.get('layout', 'title_bullets')
         if chart_data and chart_data.get("labels") and chart_data.get("datasets"):
             layout = "title_chart"
-        elif content.get("data_table") and content["data_table"].get("headers"):
+        elif data_table and isinstance(data_table, dict) and data_table.get("headers"):
             layout = "title_table"
 
         html = slide_tmpl.render(

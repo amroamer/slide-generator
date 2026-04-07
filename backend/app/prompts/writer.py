@@ -7,6 +7,34 @@ def build_writer_system_prompt(language: str, tone: str, audience: str) -> str:
         "You receive a presentation plan and source data. "
         "Generate the full text content for each slide. "
         "Return ONLY valid JSON with no markdown, no explanation."
+        "\n\nDATA USAGE — CRITICAL RULES:"
+        "\n- Your slide content MUST include real values from the data: exact names, numbers, percentages, dates, and statuses."
+        "\n- Do NOT write 'the data shows...' or 'according to the file...' — present the actual data directly."
+        "\n\nOUTPUT FORMAT RULES BASED ON SLIDE TYPE:"
+        "\n"
+        "\nWhen slide_type is 'table':"
+        "\n  You MUST generate a data_table field with actual rows and columns from the source data."
+        "\n  Do NOT write bullet points describing the table — generate the actual table structure."
+        '\n  data_table: {"headers": ["Col1", "Col2"], "rows": [["val1", "val2"], ["val3", "val4"]]}'
+        "\n  - Use ACTUAL data from the uploaded files — real names, numbers, dates, statuses"
+        "\n  - Maximum 10 rows — show the most important ones"
+        "\n"
+        "\nWhen slide_type is 'chart':"
+        "\n  You MUST generate a chart_data field with actual numeric values from the source data."
+        "\n  Do NOT write bullet points describing what the chart should look like — generate the actual data."
+        '\n  chart_data: {"chart_type": "bar", "labels": ["A", "B"], "datasets": [{"label": "Series", "values": [10, 20]}]}'
+        "\n  - chart_type: bar|horizontal_bar|pie|donut|line|area|gantt|timeline"
+        "\n  - labels array and values array MUST have the same length"
+        "\n  - Use REAL numeric values from the data, not invented numbers"
+        "\n"
+        "\nWhen slide_type is 'comparison' or 'two_column':"
+        "\n  Include left_column and right_column objects with heading and items."
+        "\n"
+        "\nFor ALL slide types: always include body.content with at least 1 context sentence."
+        "\n"
+        "\nCRITICAL: When slide_type is 'table', data_table MUST NOT be null."
+        "\n          When slide_type is 'chart', chart_data MUST NOT be null."
+        "\n          A table/chart slide with only bullet text is a FAILURE."
     )
 
     tone_map = {
@@ -48,6 +76,7 @@ def build_writer_user_prompt(
     plan: dict,
     data_summary: dict | None,
     original_prompt: str,
+    parsed_data_text: str | None = None,
 ) -> str:
     parts = []
 
@@ -55,8 +84,13 @@ def build_writer_user_prompt(
 
     parts.append(f"\nAPPROVED PRESENTATION PLAN:\n{json.dumps(plan, indent=2)}")
 
-    if data_summary and data_summary.get("files"):
-        parts.append("\nSOURCE DATA:")
+    if parsed_data_text:
+        parts.append(
+            "\nSOURCE DATA (use actual values from this data in your slide content):\n"
+            + parsed_data_text
+        )
+    elif data_summary and data_summary.get("files"):
+        parts.append("\nSOURCE DATA (use actual values from this data in your slide content):")
         for f in data_summary["files"]:
             fname = f.get("filename", "unknown")
             ftype = f.get("type", "unknown")
@@ -64,59 +98,63 @@ def build_writer_user_prompt(
                 if "sheets" in f:
                     for sheet in f["sheets"]:
                         cols = sheet.get("columns", [])
-                        rows = sheet.get("sample_rows", [])[:20]
+                        rows = sheet.get("sample_rows", [])[:30]
                         parts.append(f"  {fname} (sheet: {sheet.get('sheet_name', '?')}): columns={cols}")
                         if rows:
-                            parts.append(f"  Sample rows ({len(rows)}):")
-                            for row in rows[:10]:
-                                parts.append(f"    {json.dumps(row)}")
+                            parts.append(f"  Data rows ({len(rows)}):")
+                            for row in rows:
+                                row_parts = [f"{k}: {v}" for k, v in row.items() if v not in (None, "", "nan")]
+                                if row_parts:
+                                    parts.append(f"    {' | '.join(row_parts)}")
                 else:
                     cols = f.get("columns", [])
-                    rows = f.get("sample_rows", [])[:20]
+                    rows = f.get("sample_rows", [])[:30]
                     parts.append(f"  {fname}: columns={cols}")
                     if rows:
-                        parts.append(f"  Sample rows ({len(rows)}):")
-                        for row in rows[:10]:
-                            parts.append(f"    {json.dumps(row)}")
+                        parts.append(f"  Data rows ({len(rows)}):")
+                        for row in rows:
+                            row_parts = [f"{k}: {v}" for k, v in row.items() if v not in (None, "", "nan")]
+                            if row_parts:
+                                parts.append(f"    {' | '.join(row_parts)}")
             elif ftype == "text":
-                text = f.get("text_content", "")[:1000]
+                text = f.get("text_content", "")[:3000]
                 parts.append(f"  {fname}: {text}")
             elif ftype == "structured":
-                data_str = json.dumps(f.get("data", {}))[:1000]
+                data_str = json.dumps(f.get("data", {}))[:3000]
                 parts.append(f"  {fname}: {data_str}")
 
     parts.append(
-        "\nGENERATE content for EVERY slide in the plan. Return JSON with this exact schema:\n"
-        '{"slides": [{"slide_id": "sl1", "title": "...", '
-        '"body": {"type": "bullets|paragraphs|data_narrative", "content": ["line 1", "line 2"]}, '
-        '"key_takeaway": "One sentence key message", '
-        '"speaker_notes": "Detailed notes for the presenter...", '
-        '"data_table": {"headers": ["Col A", "Col B"], "rows": [["val1", "val2"]]} or null, '
-        '"chart_data": {"chart_type": "bar|line|pie|donut|area", "labels": ["Label1", "Label2"], '
-        '"datasets": [{"label": "Series Name", "values": [10, 20]}]} or null}]}\n\n'
+        "\nGENERATE content for EVERY slide in the plan. Return JSON:\n"
+        '{"slides": [<slide objects>]}\n\n'
+        "Each slide object MUST include: slide_id, title, body, key_takeaway, speaker_notes, chart_data, data_table.\n\n"
+        "OUTPUT FORMAT PER SLIDE TYPE:\n\n"
+        "For slide_type 'content' or 'summary':\n"
+        '  {"slide_id": "sl1", "title": "...", '
+        '"body": {"type": "bullets", "content": ["Bullet 1", "Bullet 2"]}, '
+        '"key_takeaway": "...", "speaker_notes": "...", "chart_data": null, "data_table": null}\n\n'
+        "For slide_type 'table':\n"
+        '  {"slide_id": "sl2", "title": "...", '
+        '"body": {"type": "bullets", "content": ["Context sentence"]}, '
+        '"data_table": {"headers": ["Col1", "Col2", "Col3"], "rows": [["val", "val", "val"], ["val", "val", "val"]]}, '
+        '"key_takeaway": "...", "speaker_notes": "...", "chart_data": null}\n'
+        "  - data_table MUST have actual data from uploaded files. Maximum 10 rows.\n"
+        "  - A table slide with data_table: null is a FAILURE.\n\n"
+        "For slide_type 'chart':\n"
+        '  {"slide_id": "sl3", "title": "...", '
+        '"body": {"type": "bullets", "content": ["Context sentence"]}, '
+        '"chart_data": {"chart_type": "bar", "labels": ["A", "B"], "datasets": [{"label": "Series", "values": [10, 20]}]}, '
+        '"key_takeaway": "...", "speaker_notes": "...", "data_table": null}\n'
+        "  - chart_type: bar|horizontal_bar|pie|donut|line|area|gantt|timeline\n"
+        "  - labels and values arrays MUST have the same length\n"
+        "  - Use REAL numeric values from the data\n"
+        "  - A chart slide with chart_data: null is a FAILURE.\n\n"
+        "For slide_type 'comparison':\n"
+        '  Include left_column and right_column: {"heading": "...", "items": ["...", "..."]}\n\n'
         "CRITICAL RULES:\n"
-        "1. You MUST generate content for EVERY slide_id in the plan.\n"
-        "2. Use REAL data values from the source files, not placeholder values.\n"
-        "3. Every slide MUST have body.content with at least 2 bullet points.\n\n"
-        "CRITICAL CHART DATA RULES:\n"
-        "- Look at each slide's slide_type in the plan. If slide_type contains 'chart', "
-        "you MUST generate a chart_data object. This is NOT optional.\n"
-        "- Even for slides with slide_type 'content' or 'table', if the data would be "
-        "better visualized as a chart, include chart_data as well.\n"
-        "- Analyze the uploaded data and create meaningful chart visualizations:\n"
-        "  * Comparing categories (e.g., KPIs by status): use 'pie' or 'donut'\n"
-        "  * Comparing values across categories (e.g., target vs actual): use 'bar' with multiple datasets\n"
-        "  * Showing trends over time: use 'line'\n"
-        "  * Showing composition/parts of a whole: use 'pie' or 'donut'\n"
-        "- chart_data MUST follow this EXACT structure — no deviations:\n"
-        '  {"chart_type": "bar", "labels": ["Label1", "Label2"], '
-        '"datasets": [{"label": "Series Name", "values": [100, 200]}]}\n'
-        "- labels array and each dataset's values array MUST have the same length.\n"
-        "- Use REAL numeric values from the uploaded data. Never use 0 or null.\n"
-        "- Every slide with slide_type 'chart' that has chart_data: null in your response is a FAILURE.\n\n"
-        "TABLE DATA RULES:\n"
-        "- For slides showing tabular comparisons: include data_table with headers and rows.\n"
-        "- Use real data from the source files."
+        "1. Generate content for EVERY slide_id in the plan.\n"
+        "2. Use REAL data values from the source files.\n"
+        "3. Every slide MUST have body.content with at least 1 sentence.\n"
+        "4. Table slides MUST have data_table. Chart slides MUST have chart_data. This is NOT optional."
     )
 
     return "\n".join(parts)

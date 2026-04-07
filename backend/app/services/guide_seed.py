@@ -97,7 +97,7 @@ SEED_DATA = [
         "slug": "settings",
         "blocks": [
             {"type": "heading", "content": {"text": "LLM Configuration", "level": 3}},
-            {"type": "paragraph", "content": {"text": "Configure your AI model provider: Claude (Anthropic), ChatGPT (OpenAI), or a local Ollama instance. Enter API keys and select default models."}},
+            {"type": "paragraph", "content": {"text": "Configure your AI model provider using a local Ollama instance (Gemma, Qwen). Select default models and endpoints."}},
             {"type": "screenshot", "content": {"image_path": None, "caption": "LLM provider configuration", "alt": "LLM settings"}},
             {"type": "heading", "content": {"text": "Prompt Management", "level": 3}},
             {"type": "paragraph", "content": {"text": "Customize the prompts used by each AI agent. Override system defaults to tailor the AI behavior for your specific use case."}},

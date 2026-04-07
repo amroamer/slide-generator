@@ -105,14 +105,99 @@ def _detect_layout_style(shapes: list) -> str:
     return "scattered"
 
 
-def _auto_name(design: dict, index: int) -> str:
+def _auto_name(design: dict, index: int, slide=None) -> str:
+    """Auto-generate a descriptive name for a slide variation."""
+    # 1. Try title text from the slide
+    if slide:
+        try:
+            for shape in slide.shapes:
+                if shape.has_text_frame and hasattr(shape, "placeholder_format"):
+                    if shape.placeholder_format and shape.placeholder_format.type is not None:
+                        ph_type = int(shape.placeholder_format.type)
+                        if ph_type in (0, 15):  # TITLE or SUBTITLE
+                            text = shape.text_frame.text.strip()
+                            if text and not _is_placeholder_text(text):
+                                # Strip generic prefixes
+                                for prefix in ["Sample ", "Template ", "Example "]:
+                                    if text.startswith(prefix):
+                                        text = text[len(prefix):]
+                                if 3 < len(text) <= 60:
+                                    return text[:50]
+        except Exception:
+            pass
+
+    # 2. Detect content structure from shapes
+    slots = design.get("content_slots", [])
+    shapes = design.get("shapes", [])
+    has_table = any(s.get("type") == "table" for s in shapes)
+    has_chart = any(s.get("type") == "chart" for s in shapes)
+    has_image = any(s.get("type") == "picture" for s in shapes)
+    title_slots = sum(1 for s in slots if s.get("slot_type") == "title")
+    item_slots = sum(1 for s in slots if s.get("slot_type") == "item")
+
+    # Count columns (side-by-side shapes)
+    if has_table:
+        cols = next((s.get("columns", 0) for s in shapes if s.get("type") == "table"), 0)
+        if cols:
+            return f"{cols}-Column Table"
+        return "Data Table"
+    if has_chart and has_image:
+        return "Chart + Image"
+    if has_chart and item_slots > 0:
+        return "Chart + Text"
+    if has_chart:
+        return "Full-Width Chart"
+    if has_image and item_slots > 0:
+        return "Image + Content"
+    if has_image:
+        return "Full-Bleed Image"
+
+    # 3. Layout pattern
+    layout_style = design.get("layout_style", "")
+    if layout_style == "centered" and len(slots) <= 2:
+        return "Statement Slide"
+    if title_slots and item_slots >= 4:
+        return "Title + Bullets"
+    if title_slots and item_slots == 0 and len(slots) <= 2:
+        return "Section Divider"
+
+    # 4. Fallback with style
     style_map = {
         "horizontal_flow": "Horizontal", "vertical_flow": "Vertical",
         "grid": "Grid", "centered": "Centered", "scattered": "Free Layout",
     }
-    style = style_map.get(design.get("layout_style", ""), "Custom")
-    letter = chr(65 + index)
-    return f"Style {letter} \u2014 {style}"
+    style = style_map.get(layout_style, "Custom")
+    return f"Variation {index + 1} — {style}"
+
+
+def _detect_layout_template_key(design: dict, category: str | None = None) -> str:
+    """Auto-detect which layout template best matches a slide variation."""
+    layout_style = design.get("layout_style", "")
+    slots = design.get("content_slots", [])
+    shapes = design.get("shapes", [])
+    item_slots = sum(1 for s in slots if s.get("slot_type") == "item")
+
+    # Table/chart categories should never get statement layout
+    if category in ("tables", "charts", "kpi"):
+        if layout_style == "horizontal_flow":
+            return "split"
+        if layout_style == "grid" or len(shapes) > 12:
+            return "compact"
+        return "full_width"
+
+    # Centered with few elements → statement
+    if layout_style == "centered" and len(slots) <= 3:
+        return "statement"
+
+    # Horizontal flow → split
+    if layout_style == "horizontal_flow":
+        return "split"
+
+    # Dense layouts → compact
+    if layout_style == "grid" or (len(shapes) > 12 and item_slots > 5):
+        return "compact"
+
+    return "full_width"
 
 
 def _auto_tag(design: dict) -> list:
@@ -129,6 +214,32 @@ def _auto_tag(design: dict) -> list:
         tags.append("detailed")
     tags.append(design.get("layout_style", "custom"))
     return tags
+
+
+def _extract_theme_colors(prs: PptxPresentation) -> list[str]:
+    """Extract theme colors from PPTX presentation."""
+    colors = set()
+    try:
+        theme_el = prs.slide_masters[0].element.find(
+            ".//{http://schemas.openxmlformats.org/drawingml/2006/main}clrScheme"
+        )
+        if theme_el is not None:
+            for child in theme_el:
+                srgb = child.find("{http://schemas.openxmlformats.org/drawingml/2006/main}srgbClr")
+                if srgb is not None:
+                    val = srgb.get("val", "")
+                    if val and len(val) == 6:
+                        colors.add(f"#{val}")
+    except Exception:
+        pass
+    # Fallback: collect from first few slides
+    if not colors:
+        for slide in list(prs.slides)[:3]:
+            for shape in slide.shapes:
+                c = _extract_fill_color(shape)
+                if c:
+                    colors.add(f"#{c}" if not c.startswith("#") else c)
+    return sorted(colors)[:8]
 
 
 def _hex_to_rgb_tuple(hex_str: str | None) -> tuple:
@@ -513,7 +624,43 @@ def extract_slide_design(slide, prs) -> dict:
             "is_placeholder": False,
         }
 
-        if shape.has_text_frame:
+        # Detect tables
+        if shape.has_table:
+            tbl = shape.table
+            shape_info["type"] = "table"
+            shape_info["columns"] = len(tbl.columns)
+            shape_info["rows"] = len(tbl.rows)
+            # Extract header text from first row
+            try:
+                shape_info["text"] = " | ".join(cell.text.strip() for cell in tbl.rows[0].cells if cell.text.strip())
+            except Exception:
+                pass
+            # Table is always a content slot
+            design["content_slots"].append({
+                "slot_type": "item",
+                "shape_index": shape_idx,
+                "placeholder_text": f"Table ({len(tbl.rows)}x{len(tbl.columns)})",
+            })
+
+        # Detect charts
+        elif hasattr(shape, "has_chart") and shape.has_chart:
+            shape_info["type"] = "chart"
+            try:
+                shape_info["text"] = shape.chart.chart_title.text_frame.text if shape.chart.has_title else "Chart"
+            except Exception:
+                shape_info["text"] = "Chart"
+            design["content_slots"].append({
+                "slot_type": "item",
+                "shape_index": shape_idx,
+                "placeholder_text": "Chart",
+            })
+
+        # Detect images/pictures
+        elif shape.shape_type == 13:  # MSO_SHAPE_TYPE.PICTURE
+            shape_info["type"] = "picture"
+
+        # Text frames (titles, bullets, etc.)
+        elif shape.has_text_frame:
             tf = shape.text_frame
             full_text = tf.text.strip()
             shape_info["text"] = full_text
@@ -560,12 +707,20 @@ async def process_template_upload(
     color: str | None,
     user_id: uuid.UUID,
     db: AsyncSession,
+    slide_type_category: str | None = None,
+    mapped_slide_types: list[str] | None = None,
 ) -> dict:
     """Main entry: reads PPTX, extracts all slides as variations."""
     from app.services.pptx_parser import PPTXSlideParser
 
     prs = PptxPresentation(file_path)
     slide_count = len(prs.slides)
+
+    if slide_count == 0:
+        raise ValueError("This file has no slides")
+
+    # Extract theme colors from PPTX
+    extracted_colors = _extract_theme_colors(prs)
 
     collection = TemplateCollection(
         id=uuid.uuid4(),
@@ -577,6 +732,9 @@ async def process_template_upload(
         source_filename=os.path.basename(file_path),
         source_file_path=file_path,
         variation_count=slide_count,
+        slide_type_category=slide_type_category,
+        mapped_slide_types=mapped_slide_types,
+        extracted_colors=extracted_colors,
     )
     db.add(collection)
 
@@ -621,17 +779,22 @@ async def process_template_upload(
             metrics_input["content_slots"] = design["content_slots"]
         metrics = compute_variation_metrics(metrics_input if metrics_input else None)
 
+        auto = _auto_name(design, idx, slide)
         variation = TemplateVariation(
             id=uuid.uuid4(),
             collection_id=collection.id,
             variation_index=idx,
-            variation_name=_auto_name(design, idx),
+            variation_name=auto,
+            auto_name=auto,
             thumbnail_path=thumb_url,
             design_json=design,
             objects_json=objects_data,
             metrics_json=metrics,
             pptx_slide_xml=slide_xml,
             tags=_auto_tag(design),
+            is_primary=(idx == 0),
+            is_enabled=True,
+            layout_template_key=_detect_layout_template_key(design, slide_type_category),
         )
         db.add(variation)
         variations.append(variation)

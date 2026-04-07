@@ -46,24 +46,17 @@ interface TestResult {
 
 const THEMES: Record<string, { accent: string; letter: string; bg: string }> = {
   ollama:    { accent: "#F59E0B", letter: "O", bg: "#FFFBEB" },
-  claude:    { accent: "#7C3AED", letter: "C", bg: "#F5F3FF" },
-  anthropic: { accent: "#7C3AED", letter: "C", bg: "#F5F3FF" },
-  openai:    { accent: "#10B981", letter: "G", bg: "#ECFDF5" },
   custom:    { accent: "#3B82F6", letter: "X", bg: "#EFF6FF" },
 };
 
 function theme(provider: string) {
   const key = provider.toLowerCase();
   if (key.includes("ollama")) return THEMES.ollama;
-  if (key.includes("claude") || key.includes("anthropic")) return THEMES.claude;
-  if (key.includes("openai")) return THEMES.openai;
   return THEMES[key] || THEMES.custom;
 }
 
 const DEFAULT_ENDPOINTS: Record<string, string> = {
   ollama: "http://host.docker.internal:11434",
-  anthropic: "https://api.anthropic.com",
-  openai: "https://api.openai.com/v1",
   custom: "",
 };
 
@@ -784,14 +777,12 @@ function EditModal({
   const isEdit = !!config;
 
   const TYPE_OPTIONS = [
-    { key: "ollama", label: "Ollama", desc: "Local models", accent: "#F59E0B", letter: "O" },
-    { key: "anthropic", label: "Anthropic", desc: "Claude models", accent: "#7C3AED", letter: "C" },
-    { key: "openai", label: "OpenAI", desc: "GPT models", accent: "#10B981", letter: "G" },
+    { key: "ollama", label: "Ollama", desc: "Local models (Gemma, Qwen, etc.)", accent: "#F59E0B", letter: "O" },
     { key: "custom", label: "Custom", desc: "Custom endpoint", accent: "#3B82F6", letter: "X" },
   ];
 
   const [selectedType, setSelectedType] = useState(
-    config ? (config.provider.toLowerCase().includes("ollama") ? "ollama" : config.provider.toLowerCase().includes("claude") || config.provider.toLowerCase().includes("anthropic") ? "anthropic" : config.provider.toLowerCase().includes("openai") ? "openai" : "custom") : ""
+    config ? (config.provider.toLowerCase().includes("ollama") ? "ollama" : "custom") : ""
   );
   const [displayName, setDisplayName] = useState(config?.display_name || "");
   const [endpointUrl, setEndpointUrl] = useState(config?.endpoint_url || "");
@@ -959,7 +950,7 @@ function EditModal({
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="e.g. My Claude Instance"
+                  placeholder="e.g. My Ollama Instance"
                   className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -1023,7 +1014,7 @@ function EditModal({
                     type="text"
                     value={modelName}
                     onChange={(e) => setModelName(e.target.value)}
-                    placeholder="e.g. claude-sonnet-4-20250514"
+                    placeholder="e.g. gemma4:latest"
                     className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 )}

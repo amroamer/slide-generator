@@ -1,5 +1,7 @@
 "use client";
 
+import { useLanguage } from "@/lib/language-context";
+
 const ALL_LAYOUTS = [
   { id: "title_slide", label: "Title", icon: "T" },
   { id: "title_bullets", label: "Bullets", icon: "\u2261" },
@@ -76,6 +78,7 @@ interface Props {
 }
 
 export function LayoutSelector({ selected, onChange, content }: Props) {
+  const { t, isRTL } = useLanguage();
   const { allowed, recommended } = getRelevantLayouts(content);
   const layouts = ALL_LAYOUTS.filter((l) => allowed.has(l.id));
 
@@ -94,7 +97,7 @@ export function LayoutSelector({ selected, onChange, content }: Props) {
         >
           {recommended === l.id && selected !== l.id && (
             <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-emerald-100 px-1.5 py-px text-[8px] font-semibold text-emerald-700">
-              Recommended
+              {t("recommended")}
             </span>
           )}
           <span className="text-lg leading-none">{l.icon}</span>

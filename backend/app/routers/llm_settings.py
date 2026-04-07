@@ -9,10 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
-from app.llm.claude_provider import AVAILABLE_MODELS as CLAUDE_MODELS
 from app.llm.factory import get_provider
 from app.llm.ollama_provider import OllamaProvider
-from app.llm.openai_provider import AVAILABLE_MODELS as OPENAI_MODELS
 from app.models.llm_config import (
     LLMConfig,
     decrypt_api_key,
@@ -66,16 +64,6 @@ def _config_to_response(cfg: LLMConfig) -> dict:
 async def list_providers(current_user: User = Depends(get_current_user)):
     """List available LLM providers with their models."""
     providers = []
-
-    providers.append(LLMProviderInfo(
-        provider="claude", display_name="Claude (Anthropic)",
-        available=bool(settings.ANTHROPIC_API_KEY), requires_api_key=True, models=CLAUDE_MODELS,
-    ))
-
-    providers.append(LLMProviderInfo(
-        provider="openai", display_name="ChatGPT (OpenAI)",
-        available=bool(settings.OPENAI_API_KEY), requires_api_key=True, models=OPENAI_MODELS,
-    ))
 
     ollama = OllamaProvider(endpoint_url=settings.OLLAMA_BASE_URL)
     providers.append(LLMProviderInfo(
@@ -297,10 +285,6 @@ async def get_config_models(config_id: uuid.UUID, current_user: User = Depends(g
                      "modified_at": m.get("modified_at", "")} for m in models]
         except Exception:
             return []
-    elif config.provider in ("claude", "anthropic"):
-        return CLAUDE_MODELS
-    elif config.provider == "openai":
-        return OPENAI_MODELS
     else:
         return []
 

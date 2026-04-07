@@ -3,11 +3,83 @@
 import json
 
 
+def get_output_format_for_slide_type(slide_type: str, slide_id: str = "sl1") -> str:
+    """Return the exact JSON schema the LLM must produce for this slide_type."""
+    if slide_type == "table":
+        return (
+            f'Return ONLY this JSON (no markdown, no code blocks):\n'
+            f'{{"slide_id": "{slide_id}", '
+            f'"title": "...", '
+            f'"body": {{"type": "bullets", "content": ["One context sentence above the table"]}}, '
+            f'"data_table": {{"headers": ["Col1", "Col2", "Col3", "Col4"], '
+            f'"rows": [["val", "val", "val", "val"], ["val", "val", "val", "val"]]}}, '
+            f'"chart_data": null, '
+            f'"key_takeaway": "One sentence summary", '
+            f'"speaker_notes": "..."}}\n\n'
+            f"CRITICAL: You MUST include data_table with actual headers and rows from the source data.\n"
+            f"- headers: array of column header strings\n"
+            f"- rows: array of arrays — each inner array is one row matching header order\n"
+            f"- Use ACTUAL values from the uploaded files — real names, numbers, dates, statuses\n"
+            f"- Maximum 10 rows — show the most important ones\n"
+            f"- Do NOT replace data_table with bullet points describing the data"
+        )
+    elif "chart" in (slide_type or ""):
+        return (
+            f'Return ONLY this JSON (no markdown, no code blocks):\n'
+            f'{{"slide_id": "{slide_id}", '
+            f'"title": "...", '
+            f'"body": {{"type": "bullets", "content": ["One context sentence above the chart"]}}, '
+            f'"chart_data": {{"chart_type": "bar", "labels": ["Label1", "Label2", "Label3"], '
+            f'"datasets": [{{"label": "Series Name", "values": [100, 200, 300]}}]}}, '
+            f'"data_table": null, '
+            f'"key_takeaway": "One sentence insight", '
+            f'"speaker_notes": "..."}}\n\n'
+            f"CRITICAL: You MUST include chart_data with actual numeric values from the source data.\n"
+            f"- chart_type: choose bar|horizontal_bar|pie|donut|line|area|gantt|timeline\n"
+            f"  * Comparing categories → bar or horizontal_bar\n"
+            f"  * Distribution/proportions → pie or donut\n"
+            f"  * Trends over time → line\n"
+            f"  * Schedules/durations → gantt\n"
+            f"- labels: array of category names\n"
+            f"- datasets: array of series, each with 'label' (string) and 'values' (array of numbers)\n"
+            f"- labels array and values array MUST have the same length\n"
+            f"- Use REAL numbers from the data. For percentages: use raw number (65 not '65%')\n"
+            f"- Do NOT replace chart_data with bullet points describing the chart"
+        )
+    elif slide_type in ("comparison", "two_column"):
+        return (
+            f'Return ONLY this JSON (no markdown, no code blocks):\n'
+            f'{{"slide_id": "{slide_id}", '
+            f'"title": "...", '
+            f'"body": {{"type": "bullets", "content": ["Context sentence"]}}, '
+            f'"left_column": {{"heading": "Left Title", "items": ["Point 1", "Point 2"]}}, '
+            f'"right_column": {{"heading": "Right Title", "items": ["Point 1", "Point 2"]}}, '
+            f'"chart_data": null, "data_table": null, '
+            f'"key_takeaway": "...", '
+            f'"speaker_notes": "..."}}'
+        )
+    else:  # content, summary, section_divider, title
+        return (
+            f'Return ONLY this JSON (no markdown, no code blocks):\n'
+            f'{{"slide_id": "{slide_id}", '
+            f'"title": "...", '
+            f'"body": {{"type": "bullets", "content": ["Bullet 1 with specific data", "Bullet 2", "Bullet 3"]}}, '
+            f'"chart_data": null, "data_table": null, '
+            f'"key_takeaway": "One sentence key message", '
+            f'"speaker_notes": "..."}}'
+        )
+
+
 def build_single_slide_system_prompt(language: str, tone: str, audience: str) -> str:
     prompt = (
         "You are the Writer Agent for Slides Generator by KPMG. "
         "You are generating content for a SINGLE slide in a presentation. "
         "Return ONLY valid JSON with no markdown, no explanation."
+        "\n\nCRITICAL RULES:"
+        "\n- Use real values from the source data: exact names, numbers, percentages, dates, statuses."
+        "\n- When slide_type is 'table': you MUST include a data_table field with headers and rows arrays containing actual data. Do NOT substitute bullet points."
+        "\n- When slide_type is 'chart': you MUST include a chart_data field with chart_type, labels, and datasets arrays containing actual numbers. Do NOT substitute bullet points."
+        "\n- A table slide without data_table, or a chart slide without chart_data, is a FAILURE."
     )
     tone_map = {
         "Formal Board-Level": "\n\nTone: Use authoritative executive language. Lead with conclusions, support with data.",
@@ -52,30 +124,21 @@ def build_single_slide_user_prompt(
         parts.append(f"\nNEXT SLIDE: {next_title}")
 
     if source_data:
-        parts.append(f"\nRELEVANT DATA:\n{json.dumps(source_data, indent=2)[:2000]}")
+        if "_parsed_text" in source_data:
+            parts.append(
+                "\nSOURCE DATA (use actual values from this data in your slide content):\n"
+                + source_data["_parsed_text"][:4000]
+            )
+        else:
+            parts.append(
+                "\nSOURCE DATA (use actual values from this data in your slide content):\n"
+                + json.dumps(source_data, indent=2)[:4000]
+            )
 
-    # Output schema
-    parts.append(
-        '\nReturn ONLY this JSON:\n'
-        '{"slide_id": "' + slide_plan.get("slide_id", "sl1") + '", '
-        '"title": "...", '
-        '"body": {"type": "bullets", "content": ["Point 1", "Point 2"]}, '
-        '"key_takeaway": "One key message", '
-        '"speaker_notes": "Presenter guidance", '
-    )
+    # Output format based on slide_type
+    slide_type = slide_plan.get("slide_type", "content")
+    slide_id = slide_plan.get("slide_id", "sl1")
+    parts.append(f"\nREQUIRED OUTPUT FORMAT (slide_type = {slide_type}):")
+    parts.append(get_output_format_for_slide_type(slide_type, slide_id))
 
-    if "chart" in (slide_plan.get("slide_type") or "").lower():
-        parts.append(
-            '"chart_data": {"chart_type": "bar|line|pie|donut", "labels": [...], '
-            '"datasets": [{"label": "...", "values": [...]}]}, '
-        )
-    else:
-        parts.append('"chart_data": null, ')
-
-    if slide_plan.get("slide_type") in ("table", "comparison"):
-        parts.append('"data_table": {"headers": [...], "rows": [[...]]}')
-    else:
-        parts.append('"data_table": null')
-
-    parts.append("}")
     return "\n".join(parts)

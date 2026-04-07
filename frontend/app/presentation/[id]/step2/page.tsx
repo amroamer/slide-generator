@@ -6,6 +6,7 @@ import { StaleWarning } from "@/components/steps/stale-warning";
 import api from "@/lib/api";
 import { usePipeline } from "@/lib/pipeline-context";
 import { useParams, useRouter } from "next/navigation";
+import { useLanguage } from "@/lib/language-context";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePresentation } from "../context";
 
@@ -37,6 +38,7 @@ export default function Step2Page() {
   const presId = id as string;
   const router = useRouter();
   const { pres, reload } = usePresentation();
+  const { t, isRTL } = useLanguage();
   const { steps: pipeSteps, refreshPipeline, hasPlan, loaded: pipelineLoaded } = usePipeline();
   const planStale = pipeSteps.plan.status === "stale";
   const [regenLoading, setRegenLoading] = useState(false);
@@ -257,11 +259,11 @@ export default function Step2Page() {
     } finally { setRefiningId(null); }
   }
 
-  async function handleRegenerate() {
-    if (!regenText.trim()) return;
+  async function handleRegenerate(instruction?: string) {
+    const text = instruction ?? regenText.trim();
     setGenerating(true);
     try {
-      const { data } = await api.post(`/presentations/${presId}/plan/regenerate`, { instruction: regenText.trim() });
+      const { data } = await api.post(`/presentations/${presId}/plan/regenerate`, { instruction: text || null });
       setPlan(data);
       setRegenText("");
       setShowRegen(false);
@@ -302,17 +304,17 @@ export default function Step2Page() {
     <div className="flex flex-1 flex-col">
       <div className="flex shrink-0 items-center border-b border-gray-100 bg-white px-8 py-4">
         <div className="flex items-center gap-2 text-sm">
-          <span className="font-semibold text-gray-900">Step 2</span>
-          <svg className="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-          <span className="text-gray-500">Presentation Planning</span>
+          <span className="font-semibold text-gray-900">{t("step")} 2</span>
+          <svg className={`h-4 w-4 text-gray-300 ${isRTL ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          <span className="text-gray-500">{t("step2Title")}</span>
         </div>
       </div>
       <div className="flex flex-1 items-center justify-center">
         <div className="text-center animate-fade-in">
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-[#00338D] to-[#0055B8] text-2xl font-bold text-white shadow-lg">PA</div>
-          <h3 className="text-xl font-semibold text-gray-900">Planner Agent</h3>
-          <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">I&apos;ll analyze your data and create a structured presentation outline tailored to your audience and goals.</p>
-          <button onClick={handleGenerateWithCancel} className="btn-primary mt-8 h-12 px-8 text-base">Generate Plan</button>
+          <h3 className="text-xl font-semibold text-gray-900">{t("plannerAgent")}</h3>
+          <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">{t("plannerAgentDesc")}</p>
+          <button onClick={handleGenerateWithCancel} className="btn-primary mt-8 h-12 px-8 text-base">{t("generatePlan")}</button>
         </div>
       </div>
     </div>
@@ -323,9 +325,9 @@ export default function Step2Page() {
     <div className="flex flex-1 flex-col">
       <div className="flex shrink-0 items-center border-b border-gray-100 bg-white px-8 py-4">
         <div className="flex items-center gap-2 text-sm">
-          <span className="font-semibold text-gray-900">Step 2</span>
-          <svg className="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-          <span className="text-gray-500">Generating Plan...</span>
+          <span className="font-semibold text-gray-900">{t("step")} 2</span>
+          <svg className={`h-4 w-4 text-gray-300 ${isRTL ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          <span className="text-gray-500">{t("generatingPlan")}</span>
         </div>
       </div>
       <div className="flex flex-1 items-center justify-center">
@@ -335,8 +337,8 @@ export default function Step2Page() {
             <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-[3px] border-white bg-[#0091DA] animate-pulse" />
           </div>
           <div className="text-center">
-            <p className="text-base font-semibold text-gray-900">Planner Agent</p>
-            <p className="mt-1 text-sm text-gray-400">Analyzing your data and generating outline...</p>
+            <p className="text-base font-semibold text-gray-900">{t("plannerAgent")}</p>
+            <p className="mt-1 text-sm text-gray-400">{t("analyzingDataDots")}</p>
           </div>
           <div className="flex items-center gap-1.5">
             {[0, 1, 2].map((i) => (
@@ -344,7 +346,7 @@ export default function Step2Page() {
                 style={{ animation: "pulse-dot 1.4s ease-in-out infinite", animationDelay: `${i * 0.2}s` }} />
             ))}
           </div>
-          <p className="text-sm text-gray-500 animate-fade-in">Planning presentation structure...</p>
+          <p className="text-sm text-gray-500 animate-fade-in">{t("planningStructure")}</p>
         </div>
       </div>
     </div>
@@ -360,25 +362,25 @@ export default function Step2Page() {
       <div className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white px-8 py-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-semibold text-gray-900">Step 2</span>
-            <svg className="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-            <span className="text-gray-500">Presentation Outline</span>
+            <span className="font-semibold text-gray-900">{t("step")} 2</span>
+            <svg className={`h-4 w-4 text-gray-300 ${isRTL ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            <span className="text-gray-500">{t("presentationOutline")}</span>
           </div>
-          <span className="badge bg-gray-100 text-gray-500">{sections.length} sections, {totalSlides} slides</span>
+          <span className="badge bg-gray-100 text-gray-500">{sections.length} {t("sections")}, {totalSlides} {t("slides")}</span>
         </div>
         <div className="flex items-center gap-2">
-          {saving && <span className="text-xs text-gray-400 animate-pulse">Saving...</span>}
-          {saved && <span className="text-xs text-emerald-500 animate-fade-in flex items-center gap-1"><svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Saved</span>}
+          {saving && <span className="text-xs text-gray-400 animate-pulse">{t("saving")}</span>}
+          {saved && <span className="text-xs text-emerald-500 animate-fade-in flex items-center gap-1"><svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>{t("saved")}</span>}
           {!generating && versions.length > 1 && (
             <select value={plan.version} onChange={(e) => handleVersionSwitch(Number(e.target.value))}
               className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 outline-none">
-              {versions.map((v) => <option key={v.version} value={v.version}>v{v.version}{v.is_active ? " (current)" : ""}</option>)}
+              {versions.map((v) => <option key={v.version} value={v.version}>v{v.version}{v.is_active ? ` (${t("current")})` : ""}</option>)}
             </select>
           )}
           {!generating && (
             <button onClick={() => setShowRegen(!showRegen)} className="btn-ghost text-xs">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-              Regenerate
+              {t("regenerate")}
             </button>
           )}
         </div>
@@ -396,24 +398,24 @@ export default function Step2Page() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900">
                     {genProgress.status === "completed"
-                      ? "Plan complete"
+                      ? t("planComplete")
                       : genProgress.total > 0
-                        ? `Planning section ${Math.min(genProgress.completed + 1, genProgress.total)} of ${genProgress.total}...`
-                        : "Planning presentation structure..."}
+                        ? `${t("planningSection")} ${Math.min(genProgress.completed + 1, genProgress.total)} ${t("of")} ${genProgress.total}...`
+                        : t("planningStructure")}
                   </p>
                   <p className="text-xs text-gray-500 truncate">
                     {genProgress.status === "completed"
-                      ? `${genProgress.total} sections, ${totalSlides} slides generated in ${genDuration}s`
+                      ? `${genProgress.total} ${t("sections")}, ${totalSlides} ${t("slides")} generated in ${genDuration}s`
                       : genProgress.total > 0
-                        ? genProgress.currentSection || "Generating section details..."
-                        : "Analyzing uploaded data and generating outline"}
+                        ? genProgress.currentSection || t("generatingSection")
+                        : t("analyzingData")}
                   </p>
                 </div>
                 {genProgress.total > 0 && (
                   <span className="text-sm text-gray-400 shrink-0">{genProgress.completed}/{genProgress.total}</span>
                 )}
                 {genProgress.status !== "completed" && (
-                  <button onClick={handleCancelGeneration} className="text-sm text-gray-400 hover:text-rose-500 shrink-0">Cancel</button>
+                  <button onClick={handleCancelGeneration} className="text-sm text-gray-400 hover:text-rose-500 shrink-0">{t("cancel")}</button>
                 )}
               </div>
 
@@ -437,11 +439,11 @@ export default function Step2Page() {
               <div className="flex items-center gap-2">
                 <svg className="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.072 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
                 <span className="text-sm font-medium text-amber-800">
-                  Plan generation cancelled. {genProgress.completed} of {genProgress.total} sections completed.
+                  {t("planComplete")} cancelled. {genProgress.completed} {t("of")} {genProgress.total} {t("sectionsCompleted")}
                 </span>
               </div>
               <button onClick={() => { setGenProgress(null); handleGenerateWithCancel(); }} className="mt-2 text-xs font-medium text-amber-700 hover:text-amber-900 underline">
-                Continue generating
+                {t("continueGenerating")}
               </button>
             </div>
           )}
@@ -449,11 +451,11 @@ export default function Step2Page() {
           {/* Handoff chips */}
           {pres && !generating && (
             <div className="mb-4">
-              <HandoffChips agentName="Intake Agent" chips={[
-                { label: `${pres.audience || "General"} audience` },
-                { label: pres.tone || "Professional" },
-                { label: pres.language || "English" },
-                { label: `${pres.slide_count} slides target` },
+              <HandoffChips agentName={t("intakeAgent")} chips={[
+                { label: `${pres.audience || t("general")} ${t("audience")}` },
+                { label: pres.tone || t("professional") },
+                { label: pres.language || t("english") },
+                { label: `${pres.slide_count} ${t("slidesTarget")}` },
               ]} />
             </div>
           )}
@@ -462,12 +464,12 @@ export default function Step2Page() {
           {!generating && planStale && pipeSteps.plan.staleReason && (
             <StaleWarning
               reason={pipeSteps.plan.staleReason}
-              actionLabel="Regenerate Plan"
+              actionLabel={`${t("regenerate")} ${t("plan")}`}
               loading={regenLoading}
               onAction={async () => {
                 setRegenLoading(true);
                 try {
-                  await handleRegenerate();
+                  await handleRegenerate("Regenerate plan based on updated input data");
                   await refreshPipeline();
                 } finally { setRegenLoading(false); }
               }}
@@ -476,12 +478,12 @@ export default function Step2Page() {
 
           {!generating && showRegen && (
             <div className="card mb-6 p-4 animate-fade-in">
-              <p className="mb-2 text-sm font-medium text-gray-700">Regenerate entire plan</p>
+              <p className="mb-2 text-sm font-medium text-gray-700">{t("regenerateEntirePlan")}</p>
               <div className="flex gap-2">
                 <input value={regenText} onChange={(e) => setRegenText(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleRegenerate()}
-                  placeholder="Describe changes to the overall structure..." className="input-field flex-1 text-sm" autoFocus />
-                <button onClick={handleRegenerate} disabled={!regenText.trim()} className="btn-primary px-4 text-sm">Regenerate</button>
+                  placeholder={t("describeChanges")} className="input-field flex-1 text-sm" autoFocus />
+                <button onClick={() => handleRegenerate()} disabled={!regenText.trim()} className="btn-primary px-4 text-sm">{t("regenerate")}</button>
               </div>
             </div>
           )}
@@ -498,7 +500,7 @@ export default function Step2Page() {
                     <div className="flex items-center gap-2 mb-3">
                       <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-2.5 py-0.5 font-medium">S{i + 1}</span>
                       <span className="text-sm font-semibold text-gray-900">{section.section_title}</span>
-                      <span className="text-xs text-gray-400">{section._slide_count || 0} slides</span>
+                      <span className="text-xs text-gray-400">{section._slide_count || 0} {t("slides")}</span>
                     </div>
                     <div className="space-y-2">
                       {Array.from({ length: section._slide_count || 2 }).map((_, j) => (
@@ -516,7 +518,7 @@ export default function Step2Page() {
                     <div className="flex items-center gap-2 mb-3">
                       <span className="text-xs bg-[#00338D]/10 text-[#00338D] rounded-full px-2.5 py-0.5 font-medium">S{i + 1}</span>
                       <span className="text-sm font-semibold text-gray-900">{section.section_title}</span>
-                      <span className="text-xs text-gray-400">{section._slide_count || 0} slides</span>
+                      <span className="text-xs text-gray-400">{section._slide_count || 0} {t("slides")}</span>
                       <svg className="h-4 w-4 text-[#00338D] animate-spin ml-auto" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -548,7 +550,7 @@ export default function Step2Page() {
                       disabled={retryingSection === section.section_id}
                       className="text-xs font-medium text-rose-700 hover:text-rose-900 underline disabled:opacity-50"
                     >
-                      {retryingSection === section.section_id ? "Retrying..." : "Retry"}
+                      {retryingSection === section.section_id ? `${t("retry")}...` : t("retry")}
                     </button>
                   </div>
                 );
@@ -569,7 +571,7 @@ export default function Step2Page() {
             <button onClick={addSection}
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 py-4 text-sm font-medium text-gray-400 transition-all hover:border-gray-400 hover:text-gray-600">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              Add Section
+              {t("addSection")}
             </button>
           )}
         </div>
@@ -579,16 +581,16 @@ export default function Step2Page() {
         <div className="mx-auto flex max-w-4xl items-center justify-between">
           <p className="text-xs text-gray-400">
             {generating
-              ? `Generating... ${genProgress?.completed || 0}/${genProgress?.total || "?"} sections`
-              : `v${plan.version} \u00b7 ${sections.length} sections, ${totalSlides} slides`}
+              ? `${t("generating")} ${genProgress?.completed || 0}/${genProgress?.total || "?"} ${t("sections")}`
+              : `v${plan.version} \u00b7 ${sections.length} ${t("sections")}, ${totalSlides} ${t("slides")}`}
           </p>
           <button
             onClick={() => router.push(`/presentation/${presId}/step3`)}
             disabled={totalSlides === 0 || generating || hasFailedSections}
             className="btn-primary h-11 px-8"
           >
-            Approve Plan & Generate Content
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+            {t("approveAndGenerate")}
+            <svg className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
       </div>

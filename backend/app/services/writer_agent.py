@@ -144,9 +144,13 @@ async def generate_content(
         plan=plan_obj.plan_json,
         data_summary=inp.raw_data_json,
         original_prompt=inp.prompt,
+        parsed_data_text=inp.parsed_data_text,
     )
 
     model = pres.llm_model or getattr(provider, "default_model", "unknown")
+
+    logger.info("Writer user prompt length: %d chars (parsed_data_text: %s)",
+                len(user_prompt), "yes" if inp.parsed_data_text else "no")
 
     start = time.monotonic()
     result = await provider.generate_with_retry(
@@ -159,11 +163,60 @@ async def generate_content(
     if not isinstance(slides_data, list) or len(slides_data) == 0:
         raise ValueError("Writer Agent returned no slides")
 
-    # Build plan slide type map for chart validation
+    # Build plan slide maps for chart validation and content normalization
     plan_slide_types: dict[str, str] = {}
+    plan_slide_map: dict[str, dict] = {}
     for section in plan_obj.plan_json.get("sections", []):
         for sl in section.get("slides", []):
             plan_slide_types[sl["slide_id"]] = sl.get("slide_type", "content")
+            plan_slide_map[sl["slide_id"]] = sl
+
+    # Normalize all slide content (extract nested body fields, clean structure)
+    for i, slide_content in enumerate(slides_data):
+        sid = slide_content.get("slide_id", "")
+        plan = plan_slide_map.get(sid, {"slide_id": sid})
+        slides_data[i] = _validate_slide_content(slide_content, plan)
+
+    # Check for table slides missing data_table
+    missing_table_ids = []
+    for slide_content in slides_data:
+        sid = slide_content.get("slide_id", "")
+        plan_type = plan_slide_types.get(sid, "content")
+        has_table = bool(
+            slide_content.get("data_table")
+            and slide_content["data_table"].get("headers")
+            and slide_content["data_table"].get("rows")
+        )
+        if plan_type == "table" and not has_table:
+            missing_table_ids.append(sid)
+
+    # Targeted retry for missing data_table
+    if missing_table_ids:
+        logger.warning("Table data missing for slides: %s — retrying", missing_table_ids)
+        data_preview = (inp.parsed_data_text or json.dumps(inp.raw_data_json))[:3000] if (inp.parsed_data_text or inp.raw_data_json) else "No source data"
+        retry_prompt = (
+            f"The following slides are typed as 'table' but you did not provide data_table: {missing_table_ids}.\n\n"
+            f"Source data:\n{data_preview}\n\n"
+            "Generate ONLY the data_table for these slides. Return JSON:\n"
+            '{"slides": [{"slide_id": "...", "data_table": {"headers": ["Col1", "Col2"], '
+            '"rows": [["val1", "val2"], ["val3", "val4"]]}}]}\n\n'
+            "Use real values from the data. Maximum 10 rows."
+        )
+        try:
+            retry_result = await provider.generate_with_retry(
+                system_prompt, retry_prompt, json_mode=True
+            )
+            for retry_slide in retry_result.get("slides", []):
+                rsid = retry_slide.get("slide_id")
+                rdt = retry_slide.get("data_table")
+                if rsid and rdt and rdt.get("headers") and rdt.get("rows"):
+                    for orig in slides_data:
+                        if orig.get("slide_id") == rsid:
+                            orig["data_table"] = rdt
+                            missing_table_ids = [x for x in missing_table_ids if x != rsid]
+                            break
+        except Exception as e:
+            logger.warning("Table retry failed: %s", e)
 
     # Check for chart slides missing chart_data
     missing_chart_ids = []
@@ -181,7 +234,7 @@ async def generate_content(
     # Targeted retry for missing chart_data
     if missing_chart_ids:
         logger.warning("Chart data missing for slides: %s — retrying", missing_chart_ids)
-        data_preview = json.dumps(inp.raw_data_json)[:3000] if inp.raw_data_json else "No source data"
+        data_preview = (inp.parsed_data_text or json.dumps(inp.raw_data_json))[:3000] if (inp.parsed_data_text or inp.raw_data_json) else "No source data"
         retry_prompt = (
             f"The following slides are typed as 'chart' but you did not provide chart_data: {missing_chart_ids}.\n\n"
             f"Source data:\n{data_preview}\n\n"
@@ -466,23 +519,46 @@ from app.prompts.writer_single_slide import build_single_slide_system_prompt, bu
 from app.services.task_manager import task_manager
 
 
-def _extract_relevant_data(data_references: list, raw_data_json: dict | None) -> dict | None:
-    """Extract data columns/rows relevant to one slide."""
+def _extract_relevant_data(
+    data_references: list,
+    raw_data_json: dict | None,
+    parsed_data_text: str | None = None,
+) -> dict | None:
+    """Extract data columns/rows relevant to one slide.
+
+    Prefers parsed_data_text when available (has actual cell values).
+    """
     if not raw_data_json or not raw_data_json.get("files"):
+        if parsed_data_text:
+            return {"_parsed_text": parsed_data_text}
         return None
+
     if not data_references:
-        # Return summary of all files
+        # Return all data — prefer parsed text
+        if parsed_data_text:
+            return {"_parsed_text": parsed_data_text}
         summary = {}
         for f in raw_data_json["files"]:
             fname = f.get("filename", "")
             if f.get("type") == "tabular":
-                summary[fname] = {
-                    "columns": f.get("columns", []),
-                    "row_count": f.get("row_count", 0),
-                    "sample_rows": (f.get("sample_rows") or [])[:5],
-                }
+                sample = (f.get("sample_rows") or [])[:20]
+                if "sheets" in f:
+                    for sheet in f.get("sheets", []):
+                        sheet_name = sheet.get("sheet_name", "")
+                        key = f"{fname} ({sheet_name})" if sheet_name else fname
+                        summary[key] = {
+                            "columns": sheet.get("columns", []),
+                            "row_count": sheet.get("row_count", 0),
+                            "sample_rows": (sheet.get("sample_rows") or [])[:20],
+                        }
+                else:
+                    summary[fname] = {
+                        "columns": f.get("columns", []),
+                        "row_count": f.get("row_count", 0),
+                        "sample_rows": sample,
+                    }
             elif f.get("type") == "text":
-                summary[fname] = {"text": f.get("text_content", "")[:300]}
+                summary[fname] = {"text": f.get("text_content", "")[:2000]}
         return summary if summary else None
 
     relevant = {}
@@ -492,11 +568,22 @@ def _extract_relevant_data(data_references: list, raw_data_json: dict | None) ->
         for f in raw_data_json["files"]:
             if f.get("filename") == fname:
                 if f.get("type") == "tabular":
-                    relevant[fname] = {
-                        "columns": f.get("columns", []),
-                        "sample_rows": (f.get("sample_rows") or [])[:10],
-                        "stats": f.get("stats", {}),
-                    }
+                    if "sheets" in f:
+                        for sheet in f.get("sheets", []):
+                            key = f"{fname} ({sheet.get('sheet_name', '')})"
+                            relevant[key] = {
+                                "columns": sheet.get("columns", []),
+                                "sample_rows": (sheet.get("sample_rows") or [])[:20],
+                                "stats": sheet.get("stats", {}),
+                            }
+                    else:
+                        relevant[fname] = {
+                            "columns": f.get("columns", []),
+                            "sample_rows": (f.get("sample_rows") or [])[:20],
+                            "stats": f.get("stats", {}),
+                        }
+                elif f.get("type") == "text":
+                    relevant[fname] = {"text": f.get("text_content", "")[:2000]}
                 break
     return relevant if relevant else None
 
@@ -510,17 +597,108 @@ def _validate_slide_content(response: dict, slide_plan: dict) -> dict:
         "key_takeaway": response.get("key_takeaway", ""),
         "speaker_notes": response.get("speaker_notes", ""),
         "chart_data": response.get("chart_data"),
-        "data_table": response.get("data_table"),
+        "data_table": response.get("data_table") or response.get("table_data"),
+        "left_column": response.get("left_column"),
+        "right_column": response.get("right_column"),
     }
+    # Extract fields the LLM may have nested inside body instead of top-level
+    if isinstance(validated["body"], dict) and "content" in validated["body"]:
+        body_dict = validated["body"]
+        for field in ("key_takeaway", "speaker_notes", "chart_data", "data_table", "left_column", "right_column"):
+            if not validated.get(field) and field in body_dict:
+                validated[field] = body_dict.pop(field)
+        # Clean body to only keep type + content
+        validated["body"] = {
+            "type": body_dict.get("type", "bullets"),
+            "content": body_dict.get("content", []),
+        }
     if isinstance(validated["body"], list):
         validated["body"] = {"type": "bullets", "content": validated["body"]}
     if isinstance(validated["body"], str):
         validated["body"] = {"type": "paragraphs", "content": [validated["body"]]}
+
+    # Normalize chart_data: accept "data" as alias for "values" in datasets
     if validated["chart_data"]:
         cd = validated["chart_data"]
         if not cd.get("labels") or not cd.get("datasets"):
             validated["chart_data"] = None
+        else:
+            for ds in cd.get("datasets", []):
+                # LLMs sometimes use "data" instead of "values"
+                if "data" in ds and "values" not in ds:
+                    ds["values"] = ds.pop("data")
+                # Ensure values are numbers
+                if "values" in ds:
+                    cleaned = []
+                    for v in ds["values"]:
+                        try:
+                            cleaned.append(float(str(v).replace("%", "").replace(",", "")))
+                        except (ValueError, TypeError):
+                            cleaned.append(0)
+                    ds["values"] = cleaned
+
+    # Normalize data_table: accept "table_data" alias, ensure structure
+    if validated["data_table"]:
+        dt = validated["data_table"]
+        if not dt.get("headers") or not dt.get("rows"):
+            validated["data_table"] = None
+
+    slide_type = slide_plan.get("slide_type", "content")
+    if slide_type == "table" and not validated["data_table"]:
+        logger.warning("TABLE slide %s missing data_table after validation", validated["slide_id"])
+    if "chart" in slide_type and not validated["chart_data"]:
+        logger.warning("CHART slide %s missing chart_data after validation", validated["slide_id"])
+
+    # Reconcile chart key_takeaway with actual chart_data values
+    if validated["chart_data"]:
+        validated["key_takeaway"] = _reconcile_chart_takeaway(
+            validated["chart_data"], validated.get("key_takeaway", "")
+        )
+
     return validated
+
+
+def _reconcile_chart_takeaway(chart_data: dict, original_takeaway: str) -> str:
+    """Rewrite key_takeaway so numbers match chart_data exactly.
+
+    Uses a simple programmatic approach: find the highest and lowest
+    values in the first dataset and state them.  Falls back to the
+    original takeaway if the chart has fewer than 2 labels.
+    """
+    labels = chart_data.get("labels", [])
+    datasets = chart_data.get("datasets", [])
+    if not datasets or not labels:
+        return original_takeaway
+
+    values = datasets[0].get("values", datasets[0].get("data", []))
+    if not values or len(values) < 2:
+        return original_takeaway
+
+    # Build label→value pairs
+    pairs = [(labels[i], values[i]) for i in range(min(len(labels), len(values)))]
+    total = sum(v for _, v in pairs)
+    chart_type = chart_data.get("chart_type", "bar")
+
+    # For pie/donut → show distribution with percentages
+    if chart_type in ("pie", "donut", "doughnut") and total > 0:
+        top = max(pairs, key=lambda p: p[1])
+        bottom = min(pairs, key=lambda p: p[1])
+        top_pct = round(top[1] / total * 100)
+        bottom_pct = round(bottom[1] / total * 100)
+        # Detect if original was Arabic
+        if any("\u0600" <= c <= "\u06FF" for c in original_takeaway):
+            return f"أعلى: {top[0]} ({top_pct}%) — أدنى: {bottom[0]} ({bottom_pct}%)"
+        return f"Highest: {top[0]} ({top_pct}%) — Lowest: {bottom[0]} ({bottom_pct}%)"
+
+    # For bar/line/area → show highest and lowest values
+    top = max(pairs, key=lambda p: p[1])
+    bottom = min(pairs, key=lambda p: p[1])
+    top_val = int(top[1]) if top[1] == int(top[1]) else round(top[1], 1)
+    bottom_val = int(bottom[1]) if bottom[1] == int(bottom[1]) else round(bottom[1], 1)
+
+    if any("\u0600" <= c <= "\u06FF" for c in original_takeaway):
+        return f"أعلى: {top[0]} ({top_val}) — أدنى: {bottom[0]} ({bottom_val})"
+    return f"Highest: {top[0]} ({top_val}) — Lowest: {bottom[0]} ({bottom_val})"
 
 
 async def start_content_generation(
@@ -583,6 +761,7 @@ async def start_content_generation(
         "audience": inp.audience or "General",
         "prompt": inp.prompt,
         "raw_data_json": inp.raw_data_json,
+        "parsed_data_text": inp.parsed_data_text,
         "llm_provider": pres.llm_provider,
         "llm_model": pres.llm_model,
         "ordered_slides": ordered_slides,
@@ -668,6 +847,7 @@ async def _generate_slides_background(task_id: str, ctx: dict):
                     source_data = _extract_relevant_data(
                         slide_plan.get("data_references", []),
                         ctx["raw_data_json"],
+                        ctx.get("parsed_data_text"),
                     )
 
                     next_title = None
@@ -686,11 +866,33 @@ async def _generate_slides_background(task_id: str, ctx: dict):
                         total_slides=len(ordered),
                     )
 
+                    slide_type = slide_plan.get("slide_type", "content")
+
                     start = time.monotonic()
                     response = await provider.generate(system_prompt, user_prompt, json_mode=True)
                     latency = (time.monotonic() - start) * 1000
 
                     validated = _validate_slide_content(response, slide_plan)
+
+                    # Retry once if table/chart slide is missing required structured data
+                    needs_retry = (
+                        (slide_type == "table" and not validated.get("data_table"))
+                        or ("chart" in slide_type and not validated.get("chart_data"))
+                    )
+                    if needs_retry:
+                        from app.prompts.writer_single_slide import get_output_format_for_slide_type
+                        retry_prompt = (
+                            f"Your previous response for this {slide_type.upper()} slide did not include "
+                            f"{'data_table' if slide_type == 'table' else 'chart_data'}.\n"
+                            f"This is REQUIRED. Here is the source data:\n"
+                            + (source_data.get("_parsed_text", json.dumps(source_data, indent=2))[:3000] if source_data else "No data")
+                            + f"\n\n{get_output_format_for_slide_type(slide_type, slide_id)}"
+                        )
+                        logger.info("Retrying %s slide %s for missing structured data", slide_type, slide_id)
+                        start2 = time.monotonic()
+                        retry_response = await provider.generate(system_prompt, retry_prompt, json_mode=True)
+                        latency += (time.monotonic() - start2) * 1000
+                        validated = _validate_slide_content(retry_response, slide_plan)
 
                     # Save to DB immediately
                     slide_record = PresentationSlide(

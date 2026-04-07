@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth-context";
+import { useLanguage } from "@/lib/language-context";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
@@ -8,6 +9,7 @@ import { FormEvent, useState } from "react";
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
+  const { t, isRTL } = useLanguage();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -21,7 +23,7 @@ export default function LoginPage() {
       await login(email, password);
       router.push("/dashboard");
     } catch (err: any) {
-      setError(err?.response?.data?.detail || "Invalid email or password");
+      setError(err?.response?.data?.detail || t("invalidCredentials"));
     } finally {
       setLoading(false);
     }
@@ -33,15 +35,15 @@ export default function LoginPage() {
         {/* Wordmark */}
         <div className="mb-10 text-center">
           <h1 className="text-3xl font-bold tracking-tight text-[#00338D]">
-            Slides Generator
+            {t("slidesGenerator")}
           </h1>
-          <p className="mt-1.5 text-sm font-medium text-gray-400">by KPMG</p>
+          <p className="mt-1.5 text-sm font-medium text-gray-400">{t("byKPMG")}</p>
         </div>
 
         {/* Card */}
         <div className="card p-8">
           <h2 className="mb-6 text-xl font-semibold text-gray-900">
-            Sign in to your account
+            {t("signInToAccount")}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -53,7 +55,7 @@ export default function LoginPage() {
 
             <div>
               <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-gray-700">
-                Email
+                {t("email")}
               </label>
               <input
                 id="email"
@@ -62,13 +64,14 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="input-field"
-                placeholder="you@kpmg.com"
+                placeholder={t("emailPlaceholder")}
+                dir="ltr"
               />
             </div>
 
             <div>
               <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-gray-700">
-                Password
+                {t("password")}
               </label>
               <input
                 id="password"
@@ -77,7 +80,8 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="input-field"
-                placeholder="Enter your password"
+                placeholder={t("passwordPlaceholder")}
+                dir="ltr"
               />
             </div>
 
@@ -85,15 +89,15 @@ export default function LoginPage() {
               {loading ? (
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
               ) : (
-                "Sign in"
+                t("signIn")
               )}
             </button>
           </form>
 
           <p className="mt-8 text-center text-sm text-gray-500">
-            Don&apos;t have an account?{" "}
+            {t("dontHaveAccount")}{" "}
             <Link href="/register" className="font-medium text-[#0091DA] transition-colors hover:text-[#00338D]">
-              Create account
+              {t("createAccount")}
             </Link>
           </p>
         </div>

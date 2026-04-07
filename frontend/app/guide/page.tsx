@@ -1,5 +1,6 @@
 "use client";
 
+import { useLanguage } from "@/lib/language-context";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -19,6 +20,7 @@ interface Section {
 }
 
 export default function GuidePage() {
+  const { t, isRTL } = useLanguage();
   const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSlug, setActiveSlug] = useState("");
@@ -86,9 +88,9 @@ export default function GuidePage() {
   if (sections.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
-        <p className="text-lg font-medium text-gray-600">User Guide is empty</p>
-        <p className="text-sm text-gray-400">An administrator needs to seed the guide content in Settings.</p>
-        <Link href="/dashboard" className="btn-secondary">Back to Dashboard</Link>
+        <p className="text-lg font-medium text-gray-600">{t("guideEmpty")}</p>
+        <p className="text-sm text-gray-400">{t("guideEmptyDesc")}</p>
+        <Link href="/dashboard" className="btn-secondary">{t("backToDashboard")}</Link>
       </div>
     );
   }
@@ -102,8 +104,8 @@ export default function GuidePage() {
             <Link href="/dashboard" className="text-sm text-gray-400 hover:text-gray-600">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
             </Link>
-            <h1 className="text-base font-bold text-gray-900">Slides Generator by KPMG</h1>
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">User Guide</span>
+            <h1 className="text-base font-bold text-gray-900">{t("slidesGenerator")} {t("byKPMG")}</h1>
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">{t("guideTitle")}</span>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => exportGuide("pdf")} disabled={!!exporting}
@@ -122,7 +124,7 @@ export default function GuidePage() {
         {/* TOC sidebar */}
         <nav className="hidden w-[200px] shrink-0 lg:block">
           <div className="sticky top-20 space-y-0.5">
-            <p className="mb-3 text-[9px] font-semibold uppercase tracking-wider text-gray-400">Contents</p>
+            <p className="mb-3 text-[9px] font-semibold uppercase tracking-wider text-gray-400">{t("contents")}</p>
             {sections.map((s) => (
               <a key={s.id} href={`#${s.slug}`}
                 className={`block rounded-md px-2.5 py-1.5 text-[12px] transition-colors ${
@@ -154,6 +156,7 @@ export default function GuidePage() {
 
 /* ── Block renderer ─────────────────────────────────────────── */
 function GuideBlock({ block }: { block: Block }) {
+  const { t } = useLanguage();
   const c = block.content_json || {};
 
   switch (block.block_type) {
@@ -175,7 +178,7 @@ function GuideBlock({ block }: { block: Block }) {
         <div className="my-4 flex gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
           <svg className="h-5 w-5 shrink-0 text-blue-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
           <div>
-            <p className="text-[11px] font-semibold uppercase text-blue-700 mb-1">Tip</p>
+            <p className="text-[11px] font-semibold uppercase text-blue-700 mb-1">{t("tip")}</p>
             <p className="text-sm text-blue-800">{c.text}</p>
           </div>
         </div>
@@ -186,7 +189,7 @@ function GuideBlock({ block }: { block: Block }) {
         <div className="my-4 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
           <svg className="h-5 w-5 shrink-0 text-amber-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
           <div>
-            <p className="text-[11px] font-semibold uppercase text-amber-700 mb-1">Warning</p>
+            <p className="text-[11px] font-semibold uppercase text-amber-700 mb-1">{t("warning")}</p>
             <p className="text-sm text-amber-800">{c.text}</p>
           </div>
         </div>

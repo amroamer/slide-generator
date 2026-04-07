@@ -47,7 +47,7 @@ async def _get_presentation(
     return pres
 
 
-@router.get("", response_model=PresentationListResponse)
+@router.get("")
 async def list_presentations(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -85,12 +85,91 @@ async def list_presentations(
     result = await db.execute(base.offset(offset).limit(page_size))
     items = result.scalars().all()
 
-    return PresentationListResponse(
-        items=[PresentationResponse.model_validate(p) for p in items],
-        total=total,
-        page=page,
-        page_size=page_size,
-    )
+    # Enrich items with thumbnail preview data
+    from app.models.presentation_input import PresentationInput
+    from app.models.presentation_plan import PresentationPlan
+    from app.models.slide import PresentationSlide
+
+    pres_ids = [p.id for p in items]
+    enriched = []
+
+    # Batch-load inputs, plans, first slides for all presentations
+    inputs_map: dict[uuid.UUID, PresentationInput] = {}
+    if pres_ids:
+        inp_result = await db.execute(
+            select(PresentationInput).where(PresentationInput.presentation_id.in_(pres_ids))
+        )
+        for inp in inp_result.scalars().all():
+            inputs_map[inp.presentation_id] = inp
+
+    plans_map: dict[uuid.UUID, dict] = {}
+    if pres_ids:
+        plan_result = await db.execute(
+            select(PresentationPlan).where(
+                PresentationPlan.presentation_id.in_(pres_ids),
+                PresentationPlan.is_active == True,  # noqa: E712
+            )
+        )
+        for plan in plan_result.scalars().all():
+            pj = plan.plan_json or {}
+            sections = pj.get("sections", [])
+            slide_count = sum(len(s.get("slides", [])) for s in sections)
+            plans_map[plan.presentation_id] = {
+                "section_count": len(sections),
+                "planned_slide_count": slide_count,
+                "section_titles": [s.get("section_title", "") for s in sections[:5]],
+            }
+
+    slides_map: dict[uuid.UUID, dict] = {}
+    if pres_ids:
+        # Get first slide per presentation (order=0)
+        for pid in pres_ids:
+            sl_result = await db.execute(
+                select(PresentationSlide)
+                .where(PresentationSlide.presentation_id == pid)
+                .order_by(PresentationSlide.order)
+                .limit(1)
+            )
+            first_slide = sl_result.scalar_one_or_none()
+            if first_slide and first_slide.content_json:
+                cj = first_slide.content_json
+                body = cj.get("body", {})
+                bullets = []
+                if isinstance(body, dict):
+                    bullets = body.get("content", [])[:3]
+                elif isinstance(body, list):
+                    bullets = body[:3]
+                bullets = [str(b)[:80] for b in bullets if isinstance(b, str)]
+                slides_map[pid] = {
+                    "first_slide_title": first_slide.title or cj.get("title", ""),
+                    "first_slide_bullets": bullets,
+                    "first_slide_type": first_slide.layout or "title_bullets",
+                    "has_chart": bool(cj.get("chart_data")),
+                    "has_table": bool(cj.get("data_table") and isinstance(cj.get("data_table"), dict) and cj["data_table"].get("headers")),
+                }
+
+    for p in items:
+        resp = PresentationResponse.model_validate(p)
+        d = resp.model_dump()
+        inp = inputs_map.get(p.id)
+        d["prompt_excerpt"] = (inp.prompt[:80] if inp and inp.prompt else "") if inp else ""
+        plan = plans_map.get(p.id)
+        d["section_count"] = plan["section_count"] if plan else 0
+        d["section_titles"] = plan["section_titles"] if plan else []
+        sl = slides_map.get(p.id)
+        d["first_slide_title"] = sl["first_slide_title"] if sl else ""
+        d["first_slide_bullets"] = sl["first_slide_bullets"] if sl else []
+        d["first_slide_type"] = sl["first_slide_type"] if sl else ""
+        d["has_chart"] = sl["has_chart"] if sl else False
+        d["has_table"] = sl["has_table"] if sl else False
+        enriched.append(d)
+
+    return {
+        "items": enriched,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @router.post("", response_model=PresentationResponse, status_code=201)
@@ -109,6 +188,59 @@ async def create_presentation(
     await db.flush()
     await db.refresh(pres)
     return pres
+
+
+from pydantic import BaseModel as _PydanticBase
+
+
+class EnhancePromptRequest(_PydanticBase):
+    prompt: str
+    action: str
+
+
+ENHANCE_INSTRUCTIONS: dict[str, str] = {
+    "specific": "Take this presentation prompt and make it more specific by adding details about what data to highlight, what comparisons to make, and what recommendations to include:\n\n{prompt}",
+    "data": "Enhance this prompt to emphasize data analysis, KPIs, and metrics:\n\n{prompt}",
+    "executive": "Rewrite this prompt for a board-level executive audience, emphasizing strategic decisions and business impact:\n\n{prompt}",
+    "structure": "Enhance this prompt by suggesting specific sections like Executive Summary, Risk Analysis, Financial Overview, Recommendations:\n\n{prompt}",
+    "simplify": "Simplify this presentation prompt to be clear and concise:\n\n{prompt}",
+}
+
+
+@router.post("/enhance-prompt")
+async def enhance_prompt(
+    body: EnhancePromptRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Enhance a presentation prompt using the configured LLM."""
+    from app.services.llm_resolver import resolve_llm
+
+    if not body.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt is empty")
+
+    template = ENHANCE_INSTRUCTIONS.get(body.action)
+    if not template:
+        raise HTTPException(status_code=400, detail=f"Unknown action: {body.action}")
+
+    try:
+        provider = await resolve_llm(current_user, db)
+    except (ValueError, Exception) as e:
+        raise HTTPException(status_code=400, detail=f"No LLM configured. Set up an AI model in Settings → LLM Configuration. ({e})")
+
+    system = "You are a presentation prompt enhancer. Improve the user's prompt based on the instruction. Return ONLY the improved prompt text, nothing else. Do not add greetings, explanations, or markdown formatting."
+    user_msg = template.format(prompt=body.prompt)
+
+    try:
+        result = await provider.generate(system, user_msg, json_mode=False)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM call failed: {e}")
+
+    enhanced = result.get("text", body.prompt).strip()
+    if enhanced.startswith('"') and enhanced.endswith('"'):
+        enhanced = enhanced[1:-1]
+
+    return {"enhanced_prompt": enhanced}
 
 
 @router.get("/{presentation_id}", response_model=PresentationResponse)

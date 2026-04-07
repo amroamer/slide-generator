@@ -5,6 +5,7 @@ import api from "@/lib/api";
 import { usePipeline } from "@/lib/pipeline-context";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useLanguage } from "@/lib/language-context";
 import { useCallback, useEffect, useState } from "react";
 import { usePresentation } from "../context";
 
@@ -22,6 +23,7 @@ export default function Step5Page() {
   const { id } = useParams();
   const presId = id as string;
   const { pres, reload } = usePresentation();
+  const { t, isRTL } = useLanguage();
 
   const [slides, setSlides] = useState<Slide[]>([]);
   const [loading, setLoading] = useState(true);
@@ -117,9 +119,9 @@ export default function Step5Page() {
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white px-8 py-4">
         <div className="flex items-center gap-2 text-sm">
-          <span className="font-semibold text-gray-900">Step 5</span>
-          <svg className="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-          <span className="text-gray-500">Export</span>
+          <span className="font-semibold text-gray-900">{t("step")} 5</span>
+          <svg className={`h-4 w-4 text-gray-300 ${isRTL ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          <span className="text-gray-500">{t("step5Title")}</span>
         </div>
       </div>
 
@@ -129,19 +131,19 @@ export default function Step5Page() {
           <div className="mb-8 flex items-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#00338D] to-[#0055B8] text-lg font-bold text-white shadow-lg">EA</div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Export Agent</h3>
-              <p className="text-sm text-gray-500">I&apos;ll package your presentation for download.</p>
+              <h3 className="text-lg font-semibold text-gray-900">{t("exportAgent")}</h3>
+              <p className="text-sm text-gray-500">{t("exportAgentDesc")}</p>
             </div>
           </div>
 
           {/* Slide selection */}
           <div className="card p-6 mb-6">
             <div className="mb-4 flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-gray-900">Select Slides</h4>
+              <h4 className="text-sm font-semibold text-gray-900">{t("selectSlides")}</h4>
               <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-500">{selected.size} of {slides.length} selected</span>
-                <button onClick={selectAll} className="text-xs font-medium text-[#0091DA] hover:text-[#00338D]">Select All</button>
-                <button onClick={deselectAll} className="text-xs font-medium text-gray-500 hover:text-gray-700">Deselect All</button>
+                <span className="text-xs text-gray-500">{selected.size} {t("of")} {slides.length} {t("selected")}</span>
+                <button onClick={selectAll} className="text-xs font-medium text-[#0091DA] hover:text-[#00338D]">{t("selectAll")}</button>
+                <button onClick={deselectAll} className="text-xs font-medium text-gray-500 hover:text-gray-700">{t("deselectAll")}</button>
               </div>
             </div>
             <div className="grid grid-cols-4 gap-3">
@@ -167,31 +169,31 @@ export default function Step5Page() {
 
           {/* Export format */}
           <div className="card p-6 mb-6">
-            <h4 className="mb-4 text-sm font-semibold text-gray-900">Export Format</h4>
+            <h4 className="mb-4 text-sm font-semibold text-gray-900">{t("exportFormat")}</h4>
             <div className="grid grid-cols-2 gap-3">
               {/* PPTX option */}
               <button onClick={() => setFormat("pptx")}
-                className={`rounded-xl border-2 p-4 text-left transition-all ${format === "pptx" ? "border-[#00338D] bg-[#00338D]/5" : "border-gray-200 hover:border-gray-300"}`}>
+                className={`rounded-xl border-2 p-4 text-start transition-all ${format === "pptx" ? "border-[#00338D] bg-[#00338D]/5" : "border-gray-200 hover:border-gray-300"}`}>
                 <div className="flex items-center gap-3">
                   <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${format === "pptx" ? "bg-[#00338D] text-white" : "bg-gray-100 text-gray-400"}`}>
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                   </div>
                   <div>
-                    <p className={`text-sm font-semibold ${format === "pptx" ? "text-gray-900" : "text-gray-600"}`}>PowerPoint (.pptx)</p>
-                    <p className="text-xs text-gray-500">Compatible with PowerPoint &amp; Google Slides</p>
+                    <p className={`text-sm font-semibold ${format === "pptx" ? "text-gray-900" : "text-gray-600"}`}>{t("pptxFormat")}</p>
+                    <p className="text-xs text-gray-500">{t("pptxDesc")}</p>
                   </div>
                 </div>
               </button>
               {/* PDF option */}
               <button onClick={() => setFormat("pdf")}
-                className={`rounded-xl border-2 p-4 text-left transition-all ${format === "pdf" ? "border-[#00338D] bg-[#00338D]/5" : "border-gray-200 hover:border-gray-300"}`}>
+                className={`rounded-xl border-2 p-4 text-start transition-all ${format === "pdf" ? "border-[#00338D] bg-[#00338D]/5" : "border-gray-200 hover:border-gray-300"}`}>
                 <div className="flex items-center gap-3">
                   <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${format === "pdf" ? "bg-[#00338D] text-white" : "bg-gray-100 text-gray-400"}`}>
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" /></svg>
                   </div>
                   <div>
-                    <p className={`text-sm font-semibold ${format === "pdf" ? "text-gray-900" : "text-gray-600"}`}>PDF Document</p>
-                    <p className="text-xs text-gray-500">Read-only sharing format</p>
+                    <p className={`text-sm font-semibold ${format === "pdf" ? "text-gray-900" : "text-gray-600"}`}>{t("pdfFormat")}</p>
+                    <p className="text-xs text-gray-500">{t("pdfDesc")}</p>
                   </div>
                 </div>
               </button>
@@ -206,8 +208,8 @@ export default function Step5Page() {
                     {includeNotes && <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                   </button>
                   <div>
-                    <p className="text-sm font-medium text-gray-700">Include speaker notes</p>
-                    <p className="text-xs text-gray-500">Adds a notes page after each slide with speaker notes content</p>
+                    <p className="text-sm font-medium text-gray-700">{t("includeNotes")}</p>
+                    <p className="text-xs text-gray-500">{t("includeNotesDesc")}</p>
                   </div>
                 </label>
               </div>
@@ -215,8 +217,8 @@ export default function Step5Page() {
 
             {/* Summary */}
             <div className="mt-4 rounded-lg bg-gray-50 px-4 py-3 text-xs text-gray-500">
-              {selected.size} slides &middot; {format.toUpperCase()} &middot; {pres?.language || "English"} &middot; {pres?.llm_provider ? `${pres.llm_provider} model` : "Default model"}
-              {format === "pdf" && includeNotes && " · With speaker notes"}
+              {selected.size} {t("slides")} &middot; {format.toUpperCase()} &middot; {pres?.language || t("english")} &middot; {pres?.llm_provider ? `${pres.llm_provider} ${t("model")}` : `${t("defaultLabel")} ${t("model")}`}
+              {format === "pdf" && includeNotes && ` · ${t("withSpeakerNotes")}`}
             </div>
           </div>
 
@@ -227,20 +229,20 @@ export default function Step5Page() {
                 <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
                   <svg className="h-8 w-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                 </div>
-                <p className="text-lg font-semibold text-gray-900">Downloaded successfully!</p>
-                <p className="mt-1 text-sm text-gray-500">Your presentation has been saved to your downloads folder.</p>
+                <p className="text-lg font-semibold text-gray-900">{t("downloadedSuccess")}</p>
+                <p className="mt-1 text-sm text-gray-500">{t("savedToDownloads")}</p>
                 <div className="mt-6 flex items-center justify-center gap-4">
-                  <button onClick={() => setExported(false)} className="btn-primary h-11 px-6">Export Again</button>
-                  <Link href="/dashboard" className="btn-secondary h-11 px-6">Back to Dashboard</Link>
+                  <button onClick={() => setExported(false)} className="btn-primary h-11 px-6">{t("exportAgain")}</button>
+                  <Link href="/dashboard" className="btn-secondary h-11 px-6">{t("backToDashboard")}</Link>
                 </div>
               </div>
             ) : (
               <button onClick={handleExport} disabled={exporting || selected.size === 0}
                 className="inline-flex h-12 items-center gap-2 rounded-lg bg-gray-900 px-8 text-base font-semibold text-white shadow-lg transition-all hover:bg-gray-800 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed">
                 {exporting ? (
-                  <><div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />Generating...</>
+                  <><div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />{t("generating")}</>
                 ) : (
-                  <><svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>Download Presentation</>
+                  <><svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>{t("downloadPresentation")}</>
                 )}
               </button>
             )}
@@ -249,8 +251,8 @@ export default function Step5Page() {
           {/* Links */}
           {!exported && (
             <div className="mt-8 flex justify-center gap-6 text-sm">
-              <Link href={`/presentation/${presId}/step4`} className="text-gray-500 hover:text-gray-700">Back to Design</Link>
-              <Link href="/dashboard" className="text-gray-500 hover:text-gray-700">Dashboard</Link>
+              <Link href={`/presentation/${presId}/step4`} className="text-gray-500 hover:text-gray-700">{t("backToDesign")}</Link>
+              <Link href="/dashboard" className="text-gray-500 hover:text-gray-700">{t("dashboard")}</Link>
             </div>
           )}
         </div>

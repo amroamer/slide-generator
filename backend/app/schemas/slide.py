@@ -14,6 +14,7 @@ class SlideResponse(BaseModel):
     content_json: dict | None = None
     layout: str | None = None
     design_json: dict | None = None
+    template_variation_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
 

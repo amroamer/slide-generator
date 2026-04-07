@@ -6,6 +6,16 @@ def build_planner_system_prompt(language: str, tone: str) -> str:
         "You are the Planner Agent for Slides Generator by KPMG. "
         "You analyze the user's data and intent, then produce a structured presentation plan. "
         "You must return ONLY valid JSON with no markdown, no explanation, no preamble."
+        "\n\nDATA USAGE — CRITICAL RULES:"
+        "\n- You will receive actual data extracted from the user's uploaded files below the user's request."
+        "\n- You MUST use specific values, names, numbers, dates, and statuses from the provided data in your slide titles and content outlines."
+        "\n- Every content_outline item must reference real data points found in the uploaded data — not generic placeholders."
+        "\n- BAD example: 'Display the status of key tasks' — this is a description, not content."
+        "\n- GOOD example: Use the actual task names, owner names, completion percentages, and status values from the data."
+        "\n- If the data contains status categories, count them and include the actual counts and percentages."
+        "\n- If the data contains dates, reference the actual dates and any variances."
+        "\n- If the data contains names of people, projects, or items — use those exact names in your output."
+        "\n- Do NOT generalize, summarize, or paraphrase the data into vague descriptions. Present the real data."
     )
 
     if language == "arabic":
@@ -46,14 +56,23 @@ def build_planner_user_prompt(
     tone: str,
     slide_count: int,
     template_structure: dict | None = None,
+    parsed_data_text: str | None = None,
 ) -> str:
     parts = []
 
     parts.append(f"USER REQUEST:\n{prompt}")
 
-    # Data summary
-    if data_summary and data_summary.get("files"):
-        parts.append("\nDATA FILES PROVIDED:")
+    # Data — prefer parsed_data_text (has actual cell values)
+    if parsed_data_text:
+        parts.append(
+            "\nACTUAL DATA FROM UPLOADED FILES — Use these exact values in your plan:\n"
+            + parsed_data_text
+            + "\n\nThe data above contains real values from the user's files. "
+            "Reference actual names, numbers, dates, percentages, and statuses "
+            "from this data in your slide titles and content_outline items."
+        )
+    elif data_summary and data_summary.get("files"):
+        parts.append("\nACTUAL DATA FROM UPLOADED FILES — Use these exact values in your plan:")
         for f in data_summary["files"]:
             fname = f.get("filename", "unknown")
             ftype = f.get("type", "unknown")
@@ -62,38 +81,28 @@ def build_planner_user_prompt(
                     for sheet in f["sheets"]:
                         cols = sheet.get("columns", [])
                         rows = sheet.get("row_count", 0)
-                        stats = sheet.get("stats", {})
+                        sample_rows = sheet.get("sample_rows", [])
                         parts.append(
                             f"  - {fname} (sheet: {sheet.get('sheet_name', '?')}): "
                             f"{rows} rows, columns: {cols}"
                         )
-                        for col, st in stats.items():
-                            if st.get("type") == "numeric":
-                                parts.append(
-                                    f"    {col}: min={st.get('min')}, max={st.get('max')}, "
-                                    f"mean={st.get('mean')}, count={st.get('count')}"
-                                )
-                            else:
-                                parts.append(
-                                    f"    {col}: {st.get('unique')} unique values, "
-                                    f"count={st.get('count')}"
-                                )
+                        if sample_rows:
+                            parts.append(f"  Data rows:")
+                            for row in sample_rows[:30]:
+                                row_parts = [f"{k}: {v}" for k, v in row.items() if v not in (None, "", "nan")]
+                                if row_parts:
+                                    parts.append(f"    {' | '.join(row_parts)}")
                 else:
                     cols = f.get("columns", [])
                     rows = f.get("row_count", 0)
-                    stats = f.get("stats", {})
+                    sample_rows = f.get("sample_rows", [])
                     parts.append(f"  - {fname}: {rows} rows, columns: {cols}")
-                    for col, st in stats.items():
-                        if st.get("type") == "numeric":
-                            parts.append(
-                                f"    {col}: min={st.get('min')}, max={st.get('max')}, "
-                                f"mean={st.get('mean')}, count={st.get('count')}"
-                            )
-                        else:
-                            parts.append(
-                                f"    {col}: {st.get('unique')} unique values, "
-                                f"count={st.get('count')}"
-                            )
+                    if sample_rows:
+                        parts.append(f"  Data rows:")
+                        for row in sample_rows[:30]:
+                            row_parts = [f"{k}: {v}" for k, v in row.items() if v not in (None, "", "nan")]
+                            if row_parts:
+                                parts.append(f"    {' | '.join(row_parts)}")
             elif ftype == "text":
                 chars = f.get("char_count", 0)
                 pages = f.get("page_count")
@@ -101,13 +110,18 @@ def build_planner_user_prompt(
                 if pages:
                     desc += f", {pages} pages"
                 parts.append(desc)
-                text_preview = f.get("text_content", "")[:500]
+                text_preview = f.get("text_content", "")[:2000]
                 if text_preview:
-                    parts.append(f"    Preview: {text_preview}")
+                    parts.append(f"    {text_preview}")
             elif ftype == "structured":
                 parts.append(f"  - {fname}: structured JSON data")
-                data_str = json.dumps(f.get("data", {}))[:500]
-                parts.append(f"    Preview: {data_str}")
+                data_str = json.dumps(f.get("data", {}))[:2000]
+                parts.append(f"    {data_str}")
+        parts.append(
+            "\nThe data above contains real values from the user's files. "
+            "Reference actual names, numbers, dates, percentages, and statuses "
+            "from this data in your slide titles and content_outline items."
+        )
 
     parts.append(f"\nCONFIGURATION:")
     parts.append(f"  Target audience: {audience or 'General'}")
@@ -140,6 +154,8 @@ def build_structure_system_prompt(language: str, tone: str) -> str:
         "Generate ONLY the high-level structure of the presentation. "
         "Do NOT generate detailed slide content — only section titles, slide counts, and slide types. "
         "You must return ONLY valid JSON with no markdown, no explanation, no preamble."
+        "\n\nSection titles should reflect the actual data provided — use specific names, "
+        "categories, and topics from the uploaded files, not generic titles."
     )
 
     if language == "arabic":
@@ -179,13 +195,18 @@ def build_structure_user_prompt(
     audience: str,
     tone: str,
     slide_count: int,
+    parsed_data_text: str | None = None,
 ) -> str:
     """User prompt for Phase 1: generate only the section skeleton."""
     parts = []
     parts.append(f"USER REQUEST:\n{prompt}")
 
-    # Abbreviated data summary — just filenames and key stats
-    if data_summary and data_summary.get("files"):
+    # Include actual data so the LLM can create data-specific section titles
+    if parsed_data_text:
+        parts.append(
+            "\nACTUAL DATA FROM UPLOADED FILES:\n" + parsed_data_text[:3000]
+        )
+    elif data_summary and data_summary.get("files"):
         parts.append("\nDATA FILES PROVIDED:")
         for f in data_summary["files"]:
             fname = f.get("filename", "unknown")
@@ -195,14 +216,24 @@ def build_structure_user_prompt(
                     for sheet in f["sheets"]:
                         cols = sheet.get("columns", [])
                         rows = sheet.get("row_count", 0)
+                        sample_rows = sheet.get("sample_rows", [])
                         parts.append(
                             f"  - {fname} (sheet: {sheet.get('sheet_name', '?')}): "
                             f"{rows} rows, columns: {cols}"
                         )
+                        for row in sample_rows[:10]:
+                            row_parts = [f"{k}: {v}" for k, v in row.items() if v not in (None, "", "nan")]
+                            if row_parts:
+                                parts.append(f"    {' | '.join(row_parts)}")
                 else:
                     cols = f.get("columns", [])
                     rows = f.get("row_count", 0)
+                    sample_rows = f.get("sample_rows", [])
                     parts.append(f"  - {fname}: {rows} rows, columns: {cols}")
+                    for row in sample_rows[:10]:
+                        row_parts = [f"{k}: {v}" for k, v in row.items() if v not in (None, "", "nan")]
+                        if row_parts:
+                            parts.append(f"    {' | '.join(row_parts)}")
             elif ftype == "text":
                 chars = f.get("char_count", 0)
                 parts.append(f"  - {fname}: {chars} characters")
@@ -241,6 +272,11 @@ def build_section_detail_system_prompt(language: str, tone: str) -> str:
         "You are generating detailed slides for ONE section of a presentation. "
         "Generate ONLY the slides for the specified section. "
         "You must return ONLY valid JSON with no markdown, no explanation, no preamble."
+        "\n\nDATA USAGE — CRITICAL RULES:"
+        "\n- Use specific values, names, numbers, dates, and statuses from the provided data."
+        "\n- Every content_outline item must reference real data points — not generic placeholders."
+        "\n- Slide titles must include actual data (e.g., specific names, numbers, percentages)."
+        "\n- Do NOT generalize or paraphrase data into vague descriptions. Present the real data."
     )
 
     if language == "arabic":
@@ -310,7 +346,10 @@ def build_section_detail_user_prompt(
         )
 
     if data_context:
-        parts.append(f"\nUPLOADED DATA:\n{data_context}")
+        parts.append(
+            "\nACTUAL DATA FROM UPLOADED FILES — Use these exact values in slide content:\n"
+            + data_context
+        )
 
     # Build expected slide IDs
     slide_ids = [f"sl{next_slide_id_start + i}" for i in range(slide_count)]

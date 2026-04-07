@@ -1,4 +1,4 @@
-import { textAlign, flexDir, borderSide, fontClass } from "@/lib/rtl-utils";
+import { textAlign, flexDir, borderSide, fontClass, renderMd } from "@/lib/rtl-utils";
 
 interface Props { content: any; primary: string; accent: string; config: any; isRTL?: boolean }
 
@@ -18,7 +18,7 @@ export function TwoColumn({ content, primary, accent, isRTL = false }: Props) {
           {left.map((b, i) => (
             <p key={i} className={`flex items-start gap-1.5 text-[10px] leading-relaxed text-gray-700 ${flexDir(isRTL)}`}>
               <span className="mt-[4px] h-[4px] w-[4px] shrink-0 rounded-full" style={{ background: accent }} />
-              <span className={`line-clamp-2 ${textAlign(isRTL)} ${fontClass(isRTL)}`}>{b}</span>
+              <span className={`line-clamp-2 ${textAlign(isRTL)} ${fontClass(isRTL)}`}>{renderMd(b)}</span>
             </p>
           ))}
         </div>
@@ -27,14 +27,14 @@ export function TwoColumn({ content, primary, accent, isRTL = false }: Props) {
           {right.map((b, i) => (
             <p key={i} className={`flex items-start gap-1.5 text-[10px] leading-relaxed text-gray-700 ${flexDir(isRTL)}`}>
               <span className="mt-[4px] h-[4px] w-[4px] shrink-0 rounded-full" style={{ background: accent }} />
-              <span className={`line-clamp-2 ${textAlign(isRTL)} ${fontClass(isRTL)}`}>{b}</span>
+              <span className={`line-clamp-2 ${textAlign(isRTL)} ${fontClass(isRTL)}`}>{renderMd(b)}</span>
             </p>
           ))}
         </div>
       </div>
       {kt && (
         <div className={`mt-2 shrink-0 rounded bg-gray-50/60 py-1 text-[8px] font-semibold leading-snug ${borderSide(isRTL)} ${textAlign(isRTL)}`} style={{ borderColor: accent, color: primary }}>
-          <span className="line-clamp-1">{kt}</span>
+          <span className="line-clamp-1">{renderMd(kt)}</span>
         </div>
       )}
     </div>

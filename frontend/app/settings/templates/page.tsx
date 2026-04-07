@@ -25,17 +25,31 @@ interface Metrics {
 interface Variation {
   id: string; variation_index: number; variation_name: string; tags: string[] | null;
   thumbnail_path: string | null; is_favorite: boolean; usage_count: number; design_summary: any; metrics?: Metrics;
+  auto_name?: string; custom_name?: string; is_enabled?: boolean; is_primary?: boolean;
 }
 
 interface Collection {
   id: string; name: string; description: string | null; icon: string | null;
   color: string | null; source_filename: string; variation_count: number;
   created_at: string; preview_variations: Variation[];
+  slide_type_category?: string; mapped_slide_types?: string[]; extracted_colors?: string[];
 }
 
 interface CollectionDetail extends Collection { variations: Variation[] }
 
-const COLORS = ["#2563EB", "#7C3AED", "#10B981", "#F59E0B", "#EF4444", "#06B6D4", "#F97316", "#6366F1", "#EC4899", "#6B7280"];
+const SLIDE_CATEGORIES = [
+  { value: "title", label: "Title Slides", types: ["title", "summary"] },
+  { value: "content", label: "Content / Bullets", types: ["content"] },
+  { value: "charts", label: "Charts", types: ["chart"] },
+  { value: "tables", label: "Tables", types: ["table"] },
+  { value: "kpi", label: "KPI Dashboards", types: ["chart"] },
+  { value: "roadmap", label: "Roadmaps / Timelines", types: ["content"] },
+  { value: "comparison", label: "Comparisons", types: ["comparison", "two_column"] },
+  { value: "divider", label: "Section Dividers", types: ["section_divider"] },
+  { value: "takeaway", label: "Takeaways / Conclusions", types: ["summary", "takeaway"] },
+  { value: "mixed", label: "Mixed / Other", types: ["content", "chart", "table"] },
+];
+
 type SortMode = "default" | "quality" | "slots" | "name";
 type FilterMode = "all" | "usable" | "decorative" | "issues";
 type DetailTab = "slides" | "objects" | "properties";
@@ -101,7 +115,7 @@ export default function TemplatesPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadName, setUploadName] = useState("");
   const [uploadDesc, setUploadDesc] = useState("");
-  const [uploadColor, setUploadColor] = useState(COLORS[0]);
+  const [uploadCategory, setUploadCategory] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -114,6 +128,9 @@ export default function TemplatesPage() {
   const [confirmDelete, setConfirmDelete] = useState<{ type: "collection" | "variation"; id: string; name: string; count?: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [recomputing, setRecomputing] = useState(false);
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [editNameValue, setEditNameValue] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("default");
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const panelRef = useRef<HTMLDivElement>(null);
@@ -131,10 +148,15 @@ export default function TemplatesPage() {
     try {
       const fd = new FormData();
       fd.append("file", uploadFile); fd.append("name", uploadName.trim());
-      fd.append("description", uploadDesc); fd.append("color", uploadColor);
+      fd.append("description", uploadDesc);
+      if (uploadCategory) {
+        fd.append("slide_type_category", uploadCategory);
+        const cat = SLIDE_CATEGORIES.find(c => c.value === uploadCategory);
+        if (cat) fd.append("mapped_slide_types", JSON.stringify(cat.types));
+      }
       await api.post("/template-collections/upload", fd);
       await loadCollections();
-      setShowUpload(false); setUploadFile(null); setUploadName(""); setUploadDesc("");
+      setShowUpload(false); setUploadFile(null); setUploadName(""); setUploadDesc(""); setUploadCategory("");
     } catch (err) { console.error(err); }
     finally { setUploading(false); }
   }
@@ -158,13 +180,17 @@ export default function TemplatesPage() {
   }
 
   async function handleDeleteVariation(collectionId: string, variationId: string) {
-    setDeleting(true);
+    setDeleting(true); setDeleteError(null);
     try {
       const { data } = await api.delete(`/template-collections/${collectionId}/variations/${variationId}`);
       setConfirmDelete(null);
       if (data.remaining_variations <= 0) { setDetail(null); await loadCollections(); }
       else { await openDetail(collectionId); await loadCollections(); }
-    } catch (err) { console.error(err); }
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message;
+      if (err?.response?.status === 400 && msg) setDeleteError(msg);
+      else console.error(err);
+    }
     finally { setDeleting(false); }
   }
 
@@ -174,6 +200,35 @@ export default function TemplatesPage() {
     try { await api.post(`/template-collections/${detail.id}/recompute-metrics`); await openDetail(detail.id); }
     catch (err) { console.error(err); }
     finally { setRecomputing(false); }
+  }
+
+  async function handleSetPrimary(variationId: string) {
+    if (!detail) return;
+    try {
+      await api.put(`/template-collections/${detail.id}/primary`, { variation_id: variationId });
+      await openDetail(detail.id);
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message;
+      if (err?.response?.status === 400 && msg) alert(msg);
+      else console.error(err);
+    }
+  }
+
+  async function handleToggleEnabled(variationId: string, enabled: boolean) {
+    if (!detail) return;
+    try {
+      await api.put(`/template-collections/${detail.id}/variations/${variationId}`, { is_enabled: enabled });
+      await openDetail(detail.id);
+    } catch (err) { console.error(err); }
+  }
+
+  async function handleRenameVariation(variationId: string, newName: string) {
+    if (!detail || !newName.trim()) return;
+    try {
+      await api.put(`/template-collections/${detail.id}/variations/${variationId}`, { custom_name: newName.trim() });
+      await openDetail(detail.id);
+    } catch (err) { console.error(err); }
+    finally { setEditingName(null); }
   }
 
   // Filtered + sorted list
@@ -280,11 +335,21 @@ export default function TemplatesPage() {
                   </div>
                   <div className="flex items-center gap-2 text-[10px] text-gray-400 flex-wrap">
                     <span className="badge bg-gray-100 text-gray-600">{c.variation_count} variations</span>
+                    {c.slide_type_category && (
+                      <span className="badge bg-blue-50 text-blue-600">{SLIDE_CATEGORIES.find(sc => sc.value === c.slide_type_category)?.label || c.slide_type_category}</span>
+                    )}
                     {aq != null && <span>Avg quality: {aq}</span>}
                     <span className="flex-1" />
                     {iss.decorative && <span className="badge bg-amber-50 text-amber-600">decorative</span>}
                     {iss.parsing && <span className="badge bg-rose-50 text-rose-500">issues</span>}
                   </div>
+                  {c.extracted_colors && c.extracted_colors.length > 0 && (
+                    <div className="flex items-center gap-1 mt-2">
+                      {c.extracted_colors.slice(0, 8).map((clr, i) => (
+                        <div key={i} className="w-3 h-3 rounded-full border border-gray-200" style={{ background: clr }} title={clr} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -305,8 +370,14 @@ export default function TemplatesPage() {
               </button>
             </div>
             <div className="mb-3"><label className="mb-1 block text-sm font-medium text-gray-700">Collection Name</label><input value={uploadName} onChange={e => setUploadName(e.target.value)} placeholder="e.g., Roadmap, SWOT" className="input-field" /></div>
-            <div className="mb-3"><label className="mb-1 block text-sm font-medium text-gray-700">Description (optional)</label><input value={uploadDesc} onChange={e => setUploadDesc(e.target.value)} placeholder="What slides are in this collection?" className="input-field" /></div>
-            <div className="mb-4"><label className="mb-1.5 block text-sm font-medium text-gray-700">Accent Color</label><div className="flex gap-2">{COLORS.map(c => <button key={c} onClick={() => setUploadColor(c)} className={`h-7 w-7 rounded-full transition-all ${uploadColor === c ? "ring-2 ring-offset-2 ring-blue-500" : ""}`} style={{ background: c }} />)}</div></div>
+            <div className="mb-3">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Slide Type Category</label>
+              <select value={uploadCategory} onChange={e => setUploadCategory(e.target.value)} className="input-field">
+                <option value="">Select a category (optional)</option>
+                {SLIDE_CATEGORIES.map(cat => <option key={cat.value} value={cat.value}>{cat.label}</option>)}
+              </select>
+            </div>
+            <div className="mb-4"><label className="mb-1 block text-sm font-medium text-gray-700">Description (optional)</label><input value={uploadDesc} onChange={e => setUploadDesc(e.target.value)} placeholder="What slides are in this collection?" className="input-field" /></div>
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowUpload(false)} disabled={uploading} className="btn-secondary h-10 text-sm">Cancel</button>
               <button onClick={handleUpload} disabled={!uploadFile || !uploadName.trim() || uploading} className="btn-primary h-10 text-sm">
@@ -450,9 +521,12 @@ export default function TemplatesPage() {
                         const vi = detail.variations.findIndex(dv => dv.id === v.id);
                         const isSelected = vi === selectedIdx;
                         const m = v.metrics;
+                        const isDisabled = v.is_enabled === false;
                         return (
                           <div key={v.id}
                             className={`group/var relative rounded-lg overflow-hidden transition-all cursor-pointer ${
+                              isDisabled ? "opacity-50" : ""
+                            } ${
                               isSelected ? "ring-2 ring-blue-500 bg-blue-50/30 shadow-md" : "border border-gray-200 hover:border-gray-300 hover:shadow-sm"
                             }`}
                             onClick={() => setSelectedIdx(vi)}
@@ -463,6 +537,16 @@ export default function TemplatesPage() {
                                 <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                               </div>
                             )}
+                            {/* Primary star */}
+                            <button
+                              className={`absolute top-1.5 left-1.5 z-20 w-5 h-5 flex items-center justify-center transition-colors ${v.is_primary ? "text-amber-400" : "text-gray-300 opacity-0 group-hover/var:opacity-100 hover:text-amber-400"}`}
+                              title={v.is_primary ? "Primary variation" : "Set as primary"}
+                              onClick={e => { e.stopPropagation(); if (!v.is_primary) handleSetPrimary(v.id); }}>
+                              {v.is_primary
+                                ? <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                                : <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                              }
+                            </button>
                             {/* Thumbnail */}
                             <div className="aspect-[16/9] bg-gray-100 overflow-hidden relative">
                               {v.thumbnail_path ? (
@@ -472,7 +556,7 @@ export default function TemplatesPage() {
                               )}
                               {/* Quality badge */}
                               {m?.quality_score != null && (
-                                <div className="absolute top-1.5 left-1.5 z-10"><QualityBadge score={m.quality_score} /></div>
+                                <div className="absolute bottom-1.5 left-1.5 z-10"><QualityBadge score={m.quality_score} /></div>
                               )}
                               {/* Hover overlay: fullscreen + delete */}
                               <div className="absolute inset-0 bg-black/0 group-hover/var:bg-black/20 transition-all flex items-center justify-center">
@@ -504,7 +588,43 @@ export default function TemplatesPage() {
                                   <span className="ml-auto text-[9px] text-blue-600 font-medium">{m.content_slots.total}s</span>
                                 )}
                               </div>
-                              <p className="text-[11px] font-medium text-gray-900 truncate">{v.variation_name}</p>
+                              {/* Variation name (editable) + primary label */}
+                              <div className="flex items-center gap-1">
+                                {editingName === v.id ? (
+                                  <input
+                                    autoFocus
+                                    value={editNameValue}
+                                    onChange={e => setEditNameValue(e.target.value)}
+                                    onKeyDown={e => { if (e.key === "Enter") handleRenameVariation(v.id, editNameValue); if (e.key === "Escape") setEditingName(null); }}
+                                    onBlur={() => handleRenameVariation(v.id, editNameValue)}
+                                    onClick={e => e.stopPropagation()}
+                                    className="text-[11px] font-medium text-gray-900 bg-white border border-blue-300 rounded px-1 py-0 w-full outline-none focus:ring-1 focus:ring-blue-400"
+                                  />
+                                ) : (
+                                  <>
+                                    <p className="text-[11px] font-medium text-gray-900 truncate">{v.custom_name || v.variation_name}</p>
+                                    <button
+                                      className="shrink-0 text-gray-300 hover:text-gray-500 opacity-0 group-hover/var:opacity-100 transition-opacity"
+                                      title="Rename"
+                                      onClick={e => { e.stopPropagation(); setEditingName(v.id); setEditNameValue(v.custom_name || v.variation_name); }}>
+                                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                              {/* Primary label + enable toggle */}
+                              <div className="flex items-center gap-1.5 mt-1">
+                                {v.is_primary && (
+                                  <span className="text-[8px] font-semibold uppercase tracking-wide text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Primary</span>
+                                )}
+                                {/* Enable/disable toggle */}
+                                <button
+                                  className={`ml-auto shrink-0 w-7 h-4 rounded-full relative transition-colors ${v.is_enabled !== false ? "bg-emerald-400" : "bg-gray-300"}`}
+                                  title={v.is_enabled !== false ? "Enabled - click to disable" : "Disabled - click to enable"}
+                                  onClick={e => { e.stopPropagation(); handleToggleEnabled(v.id, v.is_enabled === false); }}>
+                                  <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${v.is_enabled !== false ? "left-3.5" : "left-0.5"}`} />
+                                </button>
+                              </div>
                               {(v.tags || []).length > 0 && (
                                 <div className="flex gap-1 mt-0.5 flex-wrap">
                                   {(v.tags || []).slice(0, 2).map((t, i) => (
@@ -589,7 +709,7 @@ export default function TemplatesPage() {
       {/* Confirmation dialog */}
       {confirmDelete && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center animate-fade-in">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !deleting && setConfirmDelete(null)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { if (!deleting) { setConfirmDelete(null); setDeleteError(null); } }} />
           <div className="relative z-10 w-full max-w-md rounded-2xl bg-white p-6 shadow-modal text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-100">
               <svg className="h-6 w-6 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
@@ -598,8 +718,11 @@ export default function TemplatesPage() {
             <p className="mt-2 text-sm text-gray-500">
               {confirmDelete.type === "collection" ? `This will permanently delete all ${confirmDelete.count || 0} variations. Cannot be undone.` : "This variation will be permanently deleted."}
             </p>
+            {deleteError && (
+              <p className="mt-2 text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2">{deleteError}</p>
+            )}
             <div className="mt-6 flex justify-center gap-3">
-              <button onClick={() => setConfirmDelete(null)} disabled={deleting} className="btn-secondary h-10 px-5 text-sm">Cancel</button>
+              <button onClick={() => { setConfirmDelete(null); setDeleteError(null); }} disabled={deleting} className="btn-secondary h-10 px-5 text-sm">Cancel</button>
               <button onClick={() => { if (confirmDelete.type === "collection") handleDeleteCollection(confirmDelete.id); else if (detail) handleDeleteVariation(detail.id, confirmDelete.id); }}
                 disabled={deleting} className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-rose-700 disabled:opacity-50">
                 {deleting ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : null}

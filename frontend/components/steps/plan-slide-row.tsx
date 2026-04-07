@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useLanguage } from "@/lib/language-context";
 import { useQuickActions } from "@/lib/use-quick-actions";
 import { QuickActionPills, QuickAction } from "./quick-action-pills";
 
@@ -46,6 +47,7 @@ const PLANNER_ACTIONS: QuickAction[] = [
 ];
 
 export function PlanSlideRow({ slide, index, totalInSection, onUpdate, onRefine, onDelete, onMove, refining, isNew }: Props) {
+  const { t } = useLanguage();
   const dynamicActionsRaw = useQuickActions("quick_action.planner");
   const dynamicActions: QuickAction[] = dynamicActionsRaw.map((a) => ({ name: a.name, label: a.label, icon: a.icon, prompt: a.prompt }));
   const [expanded, setExpanded] = useState(false);
@@ -135,16 +137,16 @@ export function PlanSlideRow({ slide, index, totalInSection, onUpdate, onRefine,
           {/* Manual refine */}
           {!showRefine ? (
             <button onClick={() => setShowRefine(true)} disabled={quickBusy}
-              className="text-xs font-medium text-[#0091DA] transition-colors hover:text-[#00338D] disabled:opacity-40">Custom prompt...</button>
+              className="text-xs font-medium text-[#0091DA] transition-colors hover:text-[#00338D] disabled:opacity-40">{t("customPrompt")}</button>
           ) : (
             <div className="flex gap-2">
               <input value={refineText} onChange={(e) => setRefineText(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleRefineSubmit()}
-                placeholder="Describe changes..." className="input-field flex-1 h-9 text-sm" autoFocus disabled={quickBusy} />
+                placeholder={t("describeChanges")} className="input-field flex-1 h-9 text-sm" autoFocus disabled={quickBusy} />
               <button onClick={handleRefineSubmit} disabled={!refineText.trim() || refining || quickBusy} className="btn-primary h-9 px-3 text-xs">
-                {refining ? <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : "Refine"}
+                {refining ? <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : t("refine")}
               </button>
-              <button onClick={() => { setShowRefine(false); setRefineText(""); }} className="btn-ghost h-9 text-xs">Cancel</button>
+              <button onClick={() => { setShowRefine(false); setRefineText(""); }} className="btn-ghost h-9 text-xs">{t("cancel")}</button>
             </div>
           )}
         </div>

@@ -160,7 +160,11 @@ async def generate_plan(
         audience=inp.audience or "General",
         tone=tone,
         slide_count=inp.slide_count,
+        parsed_data_text=inp.parsed_data_text,
     )
+
+    logger.info("Planner user prompt length: %d chars (parsed_data_text: %s)",
+                len(user_prompt), "yes" if inp.parsed_data_text else "no")
 
     # Call LLM
     model = pres.llm_model or getattr(provider, "default_model", "unknown")
@@ -371,8 +375,16 @@ def _validate_section_slides(response: dict, expected_count: int) -> bool:
     return True
 
 
-def _build_data_context(data_summary: dict | None) -> str:
-    """Build a data context string for section detail prompts."""
+def _build_data_context(data_summary: dict | None, parsed_data_text: str | None = None) -> str:
+    """Build a data context string for section detail prompts.
+
+    Prefers parsed_data_text (human-readable with actual cell values)
+    over raw_data_json (column names and stats only).
+    """
+    if parsed_data_text:
+        logger.info("Data context length: %d chars (from parsed_data_text)", len(parsed_data_text))
+        return parsed_data_text
+
     if not data_summary or not data_summary.get("files"):
         return ""
     parts = []
@@ -385,10 +397,18 @@ def _build_data_context(data_summary: dict | None) -> str:
                     cols = sheet.get("columns", [])
                     rows = sheet.get("row_count", 0)
                     stats = sheet.get("stats", {})
+                    sample_rows = sheet.get("sample_rows", [])
                     parts.append(
                         f"  - {fname} (sheet: {sheet.get('sheet_name', '?')}): "
                         f"{rows} rows, columns: {cols}"
                     )
+                    # Include actual sample rows
+                    if sample_rows:
+                        parts.append(f"  Sample data ({min(len(sample_rows), 30)} rows):")
+                        for row in sample_rows[:30]:
+                            row_parts = [f"{k}: {v}" for k, v in row.items() if v not in (None, "", "nan")]
+                            if row_parts:
+                                parts.append(f"    {' | '.join(row_parts)}")
                     for col, st in stats.items():
                         if st.get("type") == "numeric":
                             parts.append(
@@ -404,7 +424,15 @@ def _build_data_context(data_summary: dict | None) -> str:
                 cols = f.get("columns", [])
                 rows = f.get("row_count", 0)
                 stats = f.get("stats", {})
+                sample_rows = f.get("sample_rows", [])
                 parts.append(f"  - {fname}: {rows} rows, columns: {cols}")
+                # Include actual sample rows
+                if sample_rows:
+                    parts.append(f"  Sample data ({min(len(sample_rows), 30)} rows):")
+                    for row in sample_rows[:30]:
+                        row_parts = [f"{k}: {v}" for k, v in row.items() if v not in (None, "", "nan")]
+                        if row_parts:
+                            parts.append(f"    {' | '.join(row_parts)}")
                 for col, st in stats.items():
                     if st.get("type") == "numeric":
                         parts.append(
@@ -423,14 +451,16 @@ def _build_data_context(data_summary: dict | None) -> str:
             if pages:
                 desc += f", {pages} pages"
             parts.append(desc)
-            text_preview = f.get("text_content", "")[:500]
+            text_preview = f.get("text_content", "")[:2000]
             if text_preview:
-                parts.append(f"    Preview: {text_preview}")
+                parts.append(f"    {text_preview}")
         elif ftype == "structured":
             parts.append(f"  - {fname}: structured JSON data")
-            data_str = json.dumps(f.get("data", {}))[:500]
-            parts.append(f"    Preview: {data_str}")
-    return "\n".join(parts)
+            data_str = json.dumps(f.get("data", {}))[:2000]
+            parts.append(f"    {data_str}")
+    result = "\n".join(parts)
+    logger.info("Data context length: %d chars (from raw_data_json fallback)", len(result))
+    return result
 
 
 async def start_progressive_plan(
@@ -463,6 +493,7 @@ async def start_progressive_plan(
         "audience": inp.audience or "General",
         "prompt": inp.prompt,
         "raw_data_json": inp.raw_data_json,
+        "parsed_data_text": inp.parsed_data_text,
         "slide_count": inp.slide_count,
         "llm_provider": pres.llm_provider,
         "llm_model": pres.llm_model,
@@ -529,6 +560,7 @@ async def _generate_plan_progressive(task_id: str, ctx: dict):
                 audience=ctx["audience"],
                 tone=tone,
                 slide_count=ctx["slide_count"],
+                parsed_data_text=ctx.get("parsed_data_text"),
             )
 
             start = time.monotonic()
@@ -631,7 +663,7 @@ async def _generate_plan_progressive(task_id: str, ctx: dict):
             logger.info("Progressive plan task %s: structure done, %d sections", task_id, total_sections)
 
             # ──────── PHASE 2: Generate each section's details ────────
-            data_context = _build_data_context(ctx["raw_data_json"])
+            data_context = _build_data_context(ctx["raw_data_json"], ctx.get("parsed_data_text"))
             next_slide_id = 1
 
             for sec_idx, sec in enumerate(sections):

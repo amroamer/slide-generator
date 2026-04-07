@@ -274,6 +274,8 @@ CHART_TYPE_MAP = {
     "pie": XL_CHART_TYPE.PIE,
     "donut": XL_CHART_TYPE.DOUGHNUT,
     "doughnut": XL_CHART_TYPE.DOUGHNUT,
+    "gantt": XL_CHART_TYPE.BAR_CLUSTERED,
+    "timeline": XL_CHART_TYPE.BAR_CLUSTERED,
 }
 
 SERIES_COLORS = [
@@ -565,6 +567,13 @@ async def generate_pptx(
         pptx_slide = pptx.slides.add_slide(blank_layout)
         content = sl.content_json or {}
         layout = sl.layout or "title_bullets"
+
+        # Normalize: extract fields the LLM may have nested inside body
+        body = content.get("body")
+        if isinstance(body, dict) and "content" in body:
+            for field in ("key_takeaway", "speaker_notes", "chart_data", "data_table"):
+                if not content.get(field) and field in body:
+                    content[field] = body[field]
 
         # Auto-detect: if slide has chart_data, use chart builder regardless of layout
         chart_d = content.get("chart_data")

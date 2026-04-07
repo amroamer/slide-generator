@@ -10,15 +10,17 @@ def auto_assign_layout(slide_content: dict, slide_title: str = "") -> tuple[str,
     content = slide_content or {}
     title = (slide_title or content.get("title", "")).lower()
     body = content.get("body", {}) or {}
-    body_content = body.get("content", []) if isinstance(body, dict) else []
+    body_dict = body if isinstance(body, dict) else {}
+    body_content = body_dict.get("content", []) if body_dict else []
     bullet_count = len(body_content) if isinstance(body_content, list) else 0
-    has_takeaway = bool(content.get("key_takeaway"))
+    has_takeaway = bool(content.get("key_takeaway") or body_dict.get("key_takeaway"))
 
-    chart_data = content.get("chart_data")
+    # Check top-level and nested-in-body for chart/table data
+    chart_data = content.get("chart_data") or body_dict.get("chart_data")
     has_chart = bool(chart_data and isinstance(chart_data, dict)
                      and chart_data.get("labels") and chart_data.get("datasets"))
 
-    table_data = content.get("data_table")
+    table_data = content.get("data_table") or body_dict.get("data_table")
     has_table = bool(table_data and isinstance(table_data, dict)
                      and table_data.get("headers") and table_data.get("rows"))
 

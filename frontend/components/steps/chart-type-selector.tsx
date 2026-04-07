@@ -9,6 +9,8 @@ const CHART_TYPES = [
   { id: "pie", label: "Pie", icon: "\u25D4" },
   { id: "donut", label: "Donut", icon: "\u25CE" },
   { id: "area", label: "Area", icon: "\u25E2" },
+  { id: "gantt", label: "Gantt", icon: "\u2590\u2580\u2584" },
+  { id: "timeline", label: "Timeline", icon: "\u2023\u2500\u2023" },
 ];
 
 const TIME_PATTERNS = [
@@ -121,7 +123,7 @@ export function ChartTypeSelector({ selected, onChange, chartData }: Props) {
 
   return (
     <div>
-      <div className="flex gap-1.5 overflow-x-auto py-1">
+      <div className="flex flex-wrap gap-1.5 py-1">
         {CHART_TYPES.map((ct) => (
           <button
             key={ct.id}
@@ -131,7 +133,7 @@ export function ChartTypeSelector({ selected, onChange, chartData }: Props) {
                 ? "border-[#00338D] bg-[#00338D]/5 text-[#00338D]"
                 : "border-gray-200 text-gray-500 hover:border-gray-300"
             }`}
-            style={{ minWidth: "62px" }}
+            style={{ minWidth: "56px" }}
           >
             {recommended === ct.id && selected !== ct.id && (
               <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-amber-100 px-1.5 py-px text-[8px] font-semibold text-amber-700 flex items-center gap-0.5">

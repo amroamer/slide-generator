@@ -2,10 +2,19 @@
 
 {% set bg_color = design.get('backgroundColor', '#FFFFFF') if design else '#FFFFFF' %}
 
-{# ── Helper: extract bullets from content_json body structure ── #}
-{% set body_obj = content.get('body') or {} %}
-{% set body_items = body_obj.get('content', []) if body_obj is mapping else [] %}
+{# ── Helper: extract bullets and fields from content_json ── #}
+{# Python-side normalization extracts nested body fields to top level #}
+{% set body_obj = content.get('body') if content.get('body') is mapping else {} %}
+{% set body_items = body_obj.get('content', []) if body_obj else [] %}
+{% set body_items = body_items if body_items is iterable and body_items is not mapping and body_items is not string else [] %}
 {% set bullets = content.get('bullets') or content.get('points') or body_items %}
+{% set bullets = bullets if bullets is iterable and bullets is not mapping and bullets is not string else [] %}
+{% set effective_key_takeaway = content.get('key_takeaway') or body_obj.get('key_takeaway', '') %}
+{% set effective_key_takeaway = effective_key_takeaway if effective_key_takeaway is string else '' %}
+{% set effective_chart_data = content.get('chart_data') or body_obj.get('chart_data') %}
+{% set effective_data_table = content.get('data_table') or body_obj.get('data_table') %}
+{% set effective_speaker_notes = content.get('speaker_notes') or body_obj.get('speaker_notes', '') %}
+{% set effective_speaker_notes = effective_speaker_notes if effective_speaker_notes is string else '' %}
 
 {% if layout == 'title_slide' %}
 {# ── Title Slide ── #}
@@ -41,7 +50,7 @@
   <div class="accent-bar"></div>
   <div class="slide-content">
     <h1 class="slide-title">{{ content.get('title', slide.title) }}</h1>
-    {% set table = content.get('data_table') or content.get('table') or content.get('data') %}
+    {% set table = effective_data_table or content.get('table') or content.get('data') %}
     {% if table and table is mapping %}
       {% set headers = table.get('headers', []) %}
       {% set rows = table.get('rows', []) %}
@@ -71,12 +80,18 @@
         </tbody>
       </table>
     {% else %}
-      {# Fallback to bullets if no table data #}
       {% if bullets %}
       <ul class="bullets">
-        {% for b in bullets %}<li>{{ b }}</li>{% endfor %}
+        {% for b in bullets %}
+          <li>{{ b if b is string else b.get('text', b|string) if b is mapping else b|string }}</li>
+        {% endfor %}
       </ul>
       {% endif %}
+    {% endif %}
+    {% if effective_key_takeaway %}
+    <div class="key-takeaway" style="margin-top:0.15in;">
+      <p style="font-size:12pt;">{{ effective_key_takeaway }}</p>
+    </div>
     {% endif %}
   </div>
   <div class="slide-number">{{ slide_number }} / {{ total_slides }}</div>
@@ -94,8 +109,8 @@
       </div>
     {% else %}
       {# Fallback: render chart data as table #}
-      {% set chart = content.get('chart_data') or content.get('chart') or content.get('chartData') %}
-      {% if chart and chart is mapping %}
+      {% set chart = effective_chart_data or content.get('chart') or content.get('chartData') %}
+      {% if chart and chart is mapping and chart.get('labels') and chart.get('datasets') %}
         {% set labels = chart.get('labels', []) %}
         {% set datasets = chart.get('datasets', []) %}
         <table class="data-table">
@@ -115,12 +130,18 @@
           {% endfor %}
           </tbody>
         </table>
+      {% elif bullets %}
+        {# Final fallback: show bullets if no chart/table data #}
+        <ul class="bullets">
+          {% for b in bullets %}
+            <li>{{ b if b is string else b|string }}</li>
+          {% endfor %}
+        </ul>
       {% endif %}
     {% endif %}
-    {% set kt = content.get('key_takeaway') %}
-    {% if kt %}
+    {% if effective_key_takeaway %}
     <div class="key-takeaway" style="margin-top:0.15in;">
-      <p style="font-size:12pt;">{{ kt }}</p>
+      <p style="font-size:12pt;">{{ effective_key_takeaway }}</p>
     </div>
     {% endif %}
   </div>
@@ -136,36 +157,38 @@
     <div class="two-col">
       <div class="col">
         {% set left = content.get('left') %}
+        {# Extract list from dict if LLM returned {"type":"bullets","content":[...]} #}
+        {% if left is mapping %}{% set left = left.get('content', []) %}{% endif %}
         {% if left %}
           {% if left is string %}
             <p style="font-size:13pt;color:#374151;line-height:1.6;">{{ left }}</p>
           {% elif left is iterable %}
             <ul class="bullets">
-              {% for item in left %}<li>{{ item }}</li>{% endfor %}
+              {% for item in left %}<li>{{ item if item is string else item|string }}</li>{% endfor %}
             </ul>
           {% endif %}
         {% elif bullets|length > 0 %}
-          {# Split bullets across columns #}
           {% set mid = (bullets|length + 1) // 2 %}
           <ul class="bullets">
-            {% for b in bullets[:mid] %}<li>{{ b }}</li>{% endfor %}
+            {% for b in bullets[:mid] %}<li>{{ b if b is string else b|string }}</li>{% endfor %}
           </ul>
         {% endif %}
       </div>
       <div class="col">
         {% set right = content.get('right') %}
+        {% if right is mapping %}{% set right = right.get('content', []) %}{% endif %}
         {% if right %}
           {% if right is string %}
             <p style="font-size:13pt;color:#374151;line-height:1.6;">{{ right }}</p>
           {% elif right is iterable %}
             <ul class="bullets">
-              {% for item in right %}<li>{{ item }}</li>{% endfor %}
+              {% for item in right %}<li>{{ item if item is string else item|string }}</li>{% endfor %}
             </ul>
           {% endif %}
         {% elif bullets|length > 0 %}
           {% set mid = (bullets|length + 1) // 2 %}
           <ul class="bullets">
-            {% for b in bullets[mid:] %}<li>{{ b }}</li>{% endfor %}
+            {% for b in bullets[mid:] %}<li>{{ b if b is string else b|string }}</li>{% endfor %}
           </ul>
         {% endif %}
       </div>
@@ -182,13 +205,14 @@
     <h1 class="slide-title">{{ content.get('title', slide.title) }}</h1>
     {% if bullets %}
     <ul class="bullets">
-      {% for b in bullets %}<li>{{ b }}</li>{% endfor %}
+      {% for b in bullets %}
+        <li>{{ b if b is string else b|string }}</li>
+      {% endfor %}
     </ul>
     {% endif %}
-    {% set takeaway = content.get('takeaway') or content.get('key_takeaway') %}
-    {% if takeaway %}
+    {% if effective_key_takeaway %}
     <div class="key-takeaway">
-      <p>{{ takeaway }}</p>
+      <p>{{ effective_key_takeaway }}</p>
     </div>
     {% endif %}
   </div>
@@ -201,20 +225,19 @@
   <div class="accent-bar"></div>
   <div class="slide-content">
     <h1 class="slide-title">{{ content.get('title', slide.title) }}</h1>
-    {% if content.get('subtitle') %}
+    {% if content.get('subtitle') and content['subtitle'] is string %}
     <h2 class="slide-subtitle">{{ content['subtitle'] }}</h2>
     {% endif %}
     {% if bullets %}
     <ul class="bullets">
-      {% for b in bullets %}<li>{{ b }}</li>{% endfor %}
+      {% for b in bullets %}
+        <li>{{ b if b is string else b|string }}</li>
+      {% endfor %}
     </ul>
-    {% elif content.get('body') and content['body'] is string %}
-    <p style="font-size:13pt;color:#374151;line-height:1.6;margin-top:0.2in;">{{ content['body'] }}</p>
     {% endif %}
-    {% set kt = content.get('key_takeaway') %}
-    {% if kt %}
+    {% if effective_key_takeaway %}
     <div class="key-takeaway" style="margin-top:0.2in;">
-      <p style="font-size:12pt;">{{ kt }}</p>
+      <p style="font-size:12pt;">{{ effective_key_takeaway }}</p>
     </div>
     {% endif %}
   </div>
@@ -223,9 +246,9 @@
 {% endif %}
 
 {# ── Speaker Notes Page ── #}
-{% if include_notes and content.get('speaker_notes') %}
+{% if include_notes and effective_speaker_notes %}
 <div class="notes-page">
   <h3>Speaker Notes — Slide {{ slide_number }}: {{ content.get('title', slide.title) }}</h3>
-  <p>{{ content['speaker_notes'] }}</p>
+  <p>{{ effective_speaker_notes }}</p>
 </div>
 {% endif %}

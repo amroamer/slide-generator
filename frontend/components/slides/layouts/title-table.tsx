@@ -1,4 +1,4 @@
-import { textAlign, borderSide, fontClass } from "@/lib/rtl-utils";
+import { textAlign, borderSide, fontClass, renderMd } from "@/lib/rtl-utils";
 
 interface Props { content: any; primary: string; accent: string; config: any; isRTL?: boolean }
 
@@ -31,7 +31,7 @@ export function TitleTable({ content, primary, accent, isRTL = false }: Props) {
           {bullets.map((b, i) => (
             <li key={i} className={`flex items-start gap-2 text-[11px] leading-relaxed text-gray-700 ${isRTL ? "flex-row-reverse" : ""}`}>
               <span className="mt-[5px] h-[5px] w-[5px] shrink-0 rounded-full" style={{ background: accent }} />
-              <span className={`line-clamp-2 ${textAlign(isRTL)} ${fontClass(isRTL)}`}>{b}</span>
+              <span className={`line-clamp-2 ${textAlign(isRTL)} ${fontClass(isRTL)}`}>{renderMd(b)}</span>
             </li>
           ))}
         </ul>
@@ -89,7 +89,7 @@ export function TitleTable({ content, primary, accent, isRTL = false }: Props) {
 
       {kt && (
         <div className={`mt-2 shrink-0 rounded bg-gray-50/60 py-1 text-[8px] font-semibold leading-snug ${borderSide(isRTL)} ${textAlign(isRTL)}`} style={{ borderColor: accent, color: primary }}>
-          <span className="line-clamp-1">{kt}</span>
+          <span className="line-clamp-1">{renderMd(kt)}</span>
         </div>
       )}
     </div>

@@ -177,13 +177,15 @@ async def delete_profile(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    from sqlalchemy import or_
     bp = (await db.execute(
-        select(BrandProfile).where(BrandProfile.id == profile_id, BrandProfile.user_id == current_user.id)
+        select(BrandProfile).where(
+            BrandProfile.id == profile_id,
+            or_(BrandProfile.user_id == current_user.id, BrandProfile.is_system == True),  # noqa: E712
+        )
     )).scalar_one_or_none()
     if not bp:
         raise HTTPException(404)
-    if bp.is_system:
-        raise HTTPException(403, "Cannot delete system profiles")
     # Clean up logo
     logo_dir = os.path.join(UPLOAD_DIR, str(bp.id))
     if os.path.exists(logo_dir):

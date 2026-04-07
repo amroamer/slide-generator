@@ -8,6 +8,7 @@ import api from "@/lib/api";
 import { useActiveSlide } from "@/lib/active-slide-context";
 import { usePipeline } from "@/lib/pipeline-context";
 import { useParams, useRouter } from "next/navigation";
+import { useLanguage } from "@/lib/language-context";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePresentation } from "../context";
 
@@ -20,12 +21,13 @@ interface Slide {
   content_json: any;
 }
 
-const THINKING_MESSAGES = [
-  "Reading your data sources...",
-  "Crafting executive narratives...",
-  "Building data visualizations...",
-  "Writing speaker notes...",
-  "Polishing key takeaways...",
+// THINKING_MESSAGES will be populated with translated strings inside the component
+const THINKING_MESSAGES_KEYS = [
+  "readingData",
+  "craftingNarratives",
+  "buildingVisualizations",
+  "writingSpeakerNotes",
+  "polishingTakeaways",
 ];
 
 export default function Step3Page() {
@@ -33,7 +35,9 @@ export default function Step3Page() {
   const presId = id as string;
   const router = useRouter();
   const { reload } = usePresentation();
+  const { t, isRTL } = useLanguage();
   const { steps: pipeSteps, refreshPipeline } = usePipeline();
+  const THINKING_MESSAGES = THINKING_MESSAGES_KEYS.map((k) => t(k));
   const { setActiveSlideId } = useActiveSlide();
   const contentStale = pipeSteps.content.status === "stale";
 
@@ -221,17 +225,17 @@ export default function Step3Page() {
     <div className="flex flex-1 flex-col">
       <div className="flex shrink-0 items-center border-b border-gray-100 bg-white px-8 py-4">
         <div className="flex items-center gap-2 text-sm">
-          <span className="font-semibold text-gray-900">Step 3</span>
-          <svg className="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-          <span className="text-gray-500">Content Generation</span>
+          <span className="font-semibold text-gray-900">{t("step")} 3</span>
+          <svg className={`h-4 w-4 text-gray-300 ${isRTL ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          <span className="text-gray-500">{t("step3Title")}</span>
         </div>
       </div>
       <div className="flex flex-1 items-center justify-center">
         <div className="text-center animate-fade-in">
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-[#00338D] to-[#0055B8] text-2xl font-bold text-white shadow-lg">WA</div>
-          <h3 className="text-xl font-semibold text-gray-900">Writer Agent</h3>
-          <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">I&apos;ll craft the content for each slide based on your data and approved plan.</p>
-          <button onClick={handleGenerate} className="btn-primary mt-8 h-12 px-8 text-base">Generate Content</button>
+          <h3 className="text-xl font-semibold text-gray-900">{t("writerAgent")}</h3>
+          <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">{t("writerAgentDesc")}</p>
+          <button onClick={handleGenerate} className="btn-primary mt-8 h-12 px-8 text-base">{t("generateContent")}</button>
         </div>
       </div>
     </div>
@@ -244,19 +248,19 @@ export default function Step3Page() {
       <div className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white px-8 py-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-semibold text-gray-900">Step 3</span>
-            <svg className="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-            <span className="text-gray-500">Slide Content</span>
+            <span className="font-semibold text-gray-900">{t("step")} 3</span>
+            <svg className={`h-4 w-4 text-gray-300 ${isRTL ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            <span className="text-gray-500">{t("slideContent")}</span>
           </div>
-          <span className="badge bg-gray-100 text-gray-500">{slides.length} slides</span>
+          <span className="badge bg-gray-100 text-gray-500">{slides.length} {t("slides")}</span>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={expandedIds.size > 0 ? collapseAll : expandAll} className="btn-ghost text-xs">
-            {expandedIds.size > 0 ? "Collapse All" : "Expand All"}
+            {expandedIds.size > 0 ? t("collapseAll") : t("expandAll")}
           </button>
           <button onClick={() => setShowRegenConfirm(true)} className="btn-ghost text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-            Regenerate All
+            {t("regenerateAll")}
           </button>
         </div>
       </div>
@@ -264,12 +268,12 @@ export default function Step3Page() {
       {/* Regenerate confirmation */}
       {showRegenConfirm && (
         <div className="border-b border-amber-200 bg-amber-50 px-8 py-4 animate-fade-in">
-          <p className="mb-2 text-sm font-medium text-amber-800">Regenerate all slide content? This will overwrite current content.</p>
+          <p className="mb-2 text-sm font-medium text-amber-800">{t("regenerateAllConfirm")}</p>
           <div className="flex gap-2">
-            <input value={regenText} onChange={(e) => setRegenText(e.target.value)} placeholder="Optional: additional instruction..."
+            <input value={regenText} onChange={(e) => setRegenText(e.target.value)} placeholder={t("additionalInstruction")}
               className="input-field flex-1 h-9 text-sm bg-white" />
-            <button onClick={handleRegenerate} className="btn-primary h-9 px-4 text-xs bg-amber-600 from-amber-600 to-amber-700">Regenerate</button>
-            <button onClick={() => setShowRegenConfirm(false)} className="btn-ghost h-9 text-xs">Cancel</button>
+            <button onClick={handleRegenerate} className="btn-primary h-9 px-4 text-xs bg-amber-600 from-amber-600 to-amber-700">{t("regenerate")}</button>
+            <button onClick={() => setShowRegenConfirm(false)} className="btn-ghost h-9 text-xs">{t("cancel")}</button>
           </div>
         </div>
       )}
@@ -284,12 +288,12 @@ export default function Step3Page() {
                 <div className="flex items-center gap-2">
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-[#00338D] to-[#0055B8] text-[8px] font-bold text-white">WA</div>
                   <span className="text-sm font-medium text-gray-700">
-                    {genProgress.completed >= genProgress.total ? "All slides generated" : `Writing slide ${genProgress.completed + 1} of ${genProgress.total}...`}
+                    {genProgress.completed >= genProgress.total ? t("allSlidesGenerated") : `${t("writingSlide")} ${genProgress.completed + 1} ${t("of")} ${genProgress.total}...`}
                   </span>
                 </div>
                 {genProgress.completed < genProgress.total && (
                   <button onClick={() => { if (pollingRef.current) clearInterval(pollingRef.current); setGenerating(false); }}
-                    className="text-xs text-gray-400 hover:text-rose-500">Cancel</button>
+                    className="text-xs text-gray-400 hover:text-rose-500">{t("cancel")}</button>
                 )}
               </div>
               <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
@@ -297,7 +301,7 @@ export default function Step3Page() {
                   style={{ width: `${genProgress.total ? (genProgress.completed / genProgress.total) * 100 : 0}%` }} />
               </div>
               {genProgress.current && genProgress.completed < genProgress.total && (
-                <p className="mt-1.5 text-xs text-gray-500">Writing &ldquo;{genProgress.current}&rdquo;...</p>
+                <p className="mt-1.5 text-xs text-gray-500">{t("writing")} &ldquo;{genProgress.current}&rdquo;...</p>
               )}
               {genProgress.failed.length > 0 && (
                 <p className="mt-1 text-xs text-rose-500">{genProgress.failed.length} slide(s) failed</p>
@@ -307,9 +311,9 @@ export default function Step3Page() {
 
           {/* Handoff chips */}
           <div className="mb-4">
-            <HandoffChips agentName="Planner Agent" chips={[
-              { label: `${planSummary.sections} sections` },
-              { label: `${planSummary.slides} slides` },
+            <HandoffChips agentName={t("plannerAgent")} chips={[
+              { label: `${planSummary.sections} ${t("sections")}` },
+              { label: `${planSummary.slides} ${t("slides")}` },
             ]} />
           </div>
 
@@ -317,7 +321,7 @@ export default function Step3Page() {
           {contentStale && pipeSteps.content.staleReason && (
             <StaleWarning
               reason={pipeSteps.content.staleReason}
-              actionLabel="Regenerate All Content"
+              actionLabel={`${t("regenerateAll")} ${t("content")}`}
               loading={generating}
               onAction={async () => {
                 await handleRegenerate();
@@ -364,10 +368,10 @@ export default function Step3Page() {
       {/* Bottom CTA */}
       <div className="shrink-0 border-t border-gray-200 bg-white px-8 py-4 shadow-[0_-4px_12px_rgb(0,0,0,0.04)]">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
-          <p className="text-xs text-gray-400">{slides.length} slides ready</p>
+          <p className="text-xs text-gray-400">{slides.length} {t("slides")} ready</p>
           <button onClick={() => router.push(`/presentation/${presId}/step4`)} className="btn-primary h-11 px-8">
-            Approve Content & Design Slides
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+            {t("approveAndDesign")}
+            <svg className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
       </div>

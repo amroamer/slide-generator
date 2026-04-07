@@ -1,5 +1,6 @@
 "use client";
 
+import { useLanguage } from "@/lib/language-context";
 import { useCallback, useRef, useState } from "react";
 
 export interface QuickAction {
@@ -20,6 +21,7 @@ const ALERT_PATH = "M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.0
 const SPINNER_PATH = "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15";
 
 export function QuickActionPills({ actions, onAction, disabled = false }: Props) {
+  const { t, isRTL } = useLanguage();
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [actionStatus, setActionStatus] = useState<Record<string, "success" | "error">>({});
   const [usageCounts, setUsageCounts] = useState<Record<string, number>>({});
@@ -37,10 +39,10 @@ export function QuickActionPills({ actions, onAction, disabled = false }: Props)
       await onAction(name, prompt);
       setActionStatus({ [name]: "success" });
       setUsageCounts((prev) => ({ ...prev, [name]: (prev[name] || 0) + 1 }));
-      setInlineMsg({ text: "Slide updated", type: "success" });
+      setInlineMsg({ text: t("slideUpdated"), type: "success" });
     } catch {
       setActionStatus({ [name]: "error" });
-      setInlineMsg({ text: "Failed to refine — try again", type: "error" });
+      setInlineMsg({ text: t("failedToRefine"), type: "error" });
     } finally {
       setLoadingAction(null);
       statusTimer.current = setTimeout(() => setActionStatus({}), 2000);
@@ -52,7 +54,7 @@ export function QuickActionPills({ actions, onAction, disabled = false }: Props)
 
   return (
     <div>
-      <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-gray-400">Quick Actions</p>
+      <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-gray-400">{t("quickActions")}</p>
       <div className="flex flex-wrap gap-1.5">
         {actions.map((qa) => {
           const isLoading = loadingAction === qa.name;
@@ -88,7 +90,7 @@ export function QuickActionPills({ actions, onAction, disabled = false }: Props)
               key={qa.name}
               onClick={() => handleClick(qa.name, qa.prompt)}
               disabled={isDisabled}
-              title={isUsed && !status ? `Applied ${useCount}x — click to apply again` : undefined}
+              title={isUsed && !status ? `${t("applied")} ${useCount}x — ${t("clickToApplyAgain")}` : undefined}
               className={`relative inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-200 active:scale-[0.97] ${pillClass} disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none`}
             >
               <svg

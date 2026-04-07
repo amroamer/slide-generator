@@ -1,6 +1,7 @@
 "use client";
 
 import api from "@/lib/api";
+import { useLanguage } from "@/lib/language-context";
 import { useCallback, useRef, useState } from "react";
 
 interface UploadedFile {
@@ -40,6 +41,7 @@ function getFileIcon(filename: string) {
 }
 
 export function FileUploadZone({ presentationId, files, onFilesChange, onPreview }: Props) {
+  const { t, isRTL } = useLanguage();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -82,7 +84,7 @@ export function FileUploadZone({ presentationId, files, onFilesChange, onPreview
         {uploading ? (
           <div className="flex flex-col items-center gap-2">
             <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-[#0091DA]" />
-            <p className="text-sm font-medium text-gray-600">Uploading...</p>
+            <p className="text-sm font-medium text-gray-600">{t("uploading")}</p>
           </div>
         ) : (
           <>
@@ -91,8 +93,8 @@ export function FileUploadZone({ presentationId, files, onFilesChange, onPreview
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
             </div>
-            <p className="text-sm font-medium text-gray-600">Drop files here or click to browse</p>
-            <p className="mt-1 text-xs text-gray-400">CSV, Excel, PDF, TXT, JSON &mdash; max 25MB per file</p>
+            <p className="text-sm font-medium text-gray-600">{t("uploadFiles")}</p>
+            <p className="mt-1 text-xs text-gray-400">{t("supportedFormats")}</p>
           </>
         )}
       </div>
@@ -115,18 +117,18 @@ export function FileUploadZone({ presentationId, files, onFilesChange, onPreview
                       {f.parse_status === "success" && (
                         <span className="flex items-center gap-0.5 text-emerald-600">
                           <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                          Parsed
+                          {t("parsed")}
                         </span>
                       )}
-                      {f.parse_status === "error" && <span className="text-red-500">{f.error || "Parse error"}</span>}
+                      {f.parse_status === "error" && <span className="text-red-500">{f.error || t("parseError")}</span>}
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {f.preview && (
-                    <button onClick={() => onPreview(f)} className="btn-ghost text-xs text-[#0091DA]">Preview</button>
+                    <button onClick={() => onPreview(f)} className="btn-ghost text-xs text-[#0091DA]">{t("preview")}</button>
                   )}
-                  <button onClick={() => handleRemove(f.filename)} className="btn-ghost text-xs text-red-500 hover:text-red-700">Remove</button>
+                  <button onClick={() => handleRemove(f.filename)} className="btn-ghost text-xs text-red-500 hover:text-red-700">{t("remove")}</button>
                 </div>
               </div>
             );

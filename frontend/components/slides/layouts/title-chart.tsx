@@ -1,6 +1,6 @@
 "use client";
 
-import { textAlign, borderSide, fontClass } from "@/lib/rtl-utils";
+import { textAlign, borderSide, fontClass, renderMd } from "@/lib/rtl-utils";
 import { ErrorBoundary } from "react-error-boundary";
 import { ChartRenderer, normalizeChartData } from "../chart-renderer";
 
@@ -61,7 +61,7 @@ export function TitleChart({ content, primary, accent, isRTL = false, onGenerate
 
       {kt && (
         <div className={`mt-1.5 shrink-0 rounded bg-gray-50/60 py-1 text-[8px] font-semibold leading-snug ${borderSide(isRTL)} ${textAlign(isRTL)}`} style={{ borderColor: accent, color: primary }}>
-          <span className="line-clamp-1">{kt}</span>
+          <span className="line-clamp-1">{renderMd(kt)}</span>
         </div>
       )}
     </div>

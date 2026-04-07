@@ -1,5 +1,6 @@
 "use client";
 
+import { useLanguage } from "@/lib/language-context";
 import { useEffect, useState } from "react";
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function AgentThinking({ agentName, agentInitials, messages }: Props) {
+  const { t, isRTL } = useLanguage();
   const [msgIdx, setMsgIdx] = useState(0);
 
   useEffect(() => {
@@ -30,7 +32,7 @@ export function AgentThinking({ agentName, agentInitials, messages }: Props) {
 
       <div className="text-center">
         <p className="text-base font-semibold text-gray-900">{agentName}</p>
-        <p className="mt-1 text-sm text-gray-400">is working on your presentation</p>
+        <p className="mt-1 text-sm text-gray-400">{t("agentWorking")}</p>
       </div>
 
       {/* Thinking dots */}

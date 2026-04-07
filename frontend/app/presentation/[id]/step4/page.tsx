@@ -3,17 +3,21 @@
 import { ChartTypeSelector } from "@/components/steps/chart-type-selector";
 import { FullscreenPreview } from "@/components/steps/fullscreen-preview";
 import { LayoutSelector } from "@/components/steps/layout-selector";
+// Template options hidden until template system is ready
+// import { TemplateOptions } from "@/components/steps/template-options";
 import { SlideRenderer } from "@/components/slides/slide-renderer";
 import api from "@/lib/api";
 import { useActiveSlide } from "@/lib/active-slide-context";
 import { usePipeline } from "@/lib/pipeline-context";
 import { useParams, useRouter } from "next/navigation";
+import { useLanguage } from "@/lib/language-context";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePresentation } from "../context";
 
 interface Slide {
   id: string; slide_id: string; title: string; content_json: any;
   layout: string | null; design_json: any; order: number;
+  template_variation_id?: string | null;
 }
 
 export default function Step4Page() {
@@ -21,6 +25,7 @@ export default function Step4Page() {
   const presId = id as string;
   const router = useRouter();
   const { pres, reload } = usePresentation();
+  const { t, isRTL } = useLanguage();
   const { setActiveSlideId } = useActiveSlide();
 
   const [slides, setSlides] = useState<Slide[]>([]);
@@ -55,7 +60,7 @@ export default function Step4Page() {
         const { data: designed } = await api.post(`/presentations/${presId}/design/generate`);
         setSlides(designed);
         await reload();
-        setToast("Layouts auto-assigned based on content");
+        setToast(t("layoutsAutoAssigned"));
         setTimeout(() => setToast(""), 3000);
       }
     } catch { setSlides([]); }
@@ -80,6 +85,33 @@ export default function Step4Page() {
   async function handleLayoutChange(slideId: string, layout: string) {
     setSlides((prev) => prev.map((s) => s.slide_id === slideId ? { ...s, layout } : s));
     try { await api.put(`/presentations/${presId}/slides/${slideId}/design`, { layout }); } catch {}
+  }
+
+  async function handleTemplateSelect(slideId: string, variationId: string | null, collectionId?: string | null) {
+    if (!variationId || !collectionId) {
+      // Clear template — remove template_design from design_json
+      setSlides((prev) => prev.map((s) => {
+        if (s.slide_id !== slideId) return s;
+        const dj = { ...(s.design_json || {}) };
+        delete dj.template_design;
+        delete dj.template_variation_id;
+        delete dj.template_collection_id;
+        delete dj.template_variation_name;
+        delete dj.content_mapping;
+        return { ...s, template_variation_id: null, design_json: dj };
+      }));
+      try { await api.put(`/presentations/${presId}/slides/${slideId}/design`, { template_variation_id: "", design_json: {} }); } catch {}
+      return;
+    }
+    // Apply template via the apply endpoint — this stores full template_design in design_json
+    try {
+      const { data } = await api.post(`/template-collections/${collectionId}/variations/${variationId}/apply/${presId}/${slideId}`);
+      setSlides((prev) => prev.map((s) =>
+        s.slide_id === slideId
+          ? { ...s, template_variation_id: variationId, design_json: data.design_json }
+          : s
+      ));
+    } catch (err) { console.error("Failed to apply template:", err); }
   }
 
   function handleChartTypeChange(slideId: string, chartType: string) {
@@ -139,7 +171,7 @@ export default function Step4Page() {
 
   if (slides.length === 0) return (
     <div className="flex flex-1 items-center justify-center">
-      <p className="text-gray-500">No slides to design. Complete Step 3 first.</p>
+      <p className="text-gray-500">{t("noSlidesDesign")}</p>
     </div>
   );
 
@@ -157,28 +189,28 @@ export default function Step4Page() {
       <div className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white px-8 py-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-semibold text-gray-900">Step 4</span>
-            <svg className="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-            <span className="text-gray-500">Visual Design</span>
+            <span className="font-semibold text-gray-900">{t("step")} 4</span>
+            <svg className={`h-4 w-4 text-gray-300 ${isRTL ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            <span className="text-gray-500">{t("step4Title")}</span>
           </div>
-          <span className="badge bg-gray-100 text-gray-500">{slides.length} slides</span>
+          <span className="badge bg-gray-100 text-gray-500">{slides.length} {t("slides")}</span>
         </div>
       </div>
 
       {/* Two-panel */}
       <div className="flex flex-1 overflow-hidden">
         {/* Filmstrip */}
-        <div className="w-[220px] shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-3 space-y-2">
+        <div className="w-[220px] shrink-0 overflow-y-auto border-e border-gray-200 bg-gray-50 p-3 space-y-2">
           {slides.map((sl, i) => (
             <div key={sl.slide_id}>
               <button onClick={() => setSelectedIdx(i)}
                 className={`group relative w-full overflow-hidden rounded-lg border-2 bg-white transition-all ${i === selectedIdx ? "border-[#00338D] shadow-md" : "border-transparent hover:border-gray-300"}`}>
                 <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
                   <div className="absolute left-0 top-0 w-[800px] origin-top-left" style={{ transform: "scale(0.25)" }}>
-                    <SlideRenderer content={sl.content_json} layout={sl.layout || "title_bullets"} slideNumber={i + 1} language={pres?.language} primary={brandColors.primary} accent={brandColors.accent} className="pointer-events-none" />
+                    <SlideRenderer content={sl.content_json} layout={sl.layout || "title_bullets"} designJson={sl.design_json} slideNumber={i + 1} language={pres?.language} primary={brandColors.primary} accent={brandColors.accent} className="pointer-events-none" />
                   </div>
                 </div>
-                <div className="absolute right-1 top-1 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100">
+                <div className="absolute end-1 top-1 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100">
                   <button onClick={(e) => { e.stopPropagation(); moveSlide(i, "up"); }} disabled={i === 0} className="rounded bg-white/90 p-0.5 shadow-sm hover:bg-gray-100 disabled:opacity-30">
                     <svg className="h-3 w-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
                   </button>
@@ -211,13 +243,13 @@ export default function Step4Page() {
               </div>
 
               <div className="mt-5">
-                <label className="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">Layout</label>
+                <label className="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">{t("layout")}</label>
                 <LayoutSelector selected={selected.layout || "title_bullets"} onChange={(l) => handleLayoutChange(selected.slide_id, l)} content={selected.content_json} />
               </div>
 
               {selected.content_json?.chart_data && typeof selected.content_json.chart_data === "object" && selected.content_json.chart_data.labels && (
                 <div className="mt-4">
-                  <label className="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">Chart Type</label>
+                  <label className="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">{t("chartType")}</label>
                   <ChartTypeSelector
                     selected={selected.content_json.chart_data.chart_type || "bar"}
                     onChange={(ct) => handleChartTypeChange(selected.slide_id, ct)}
@@ -226,17 +258,19 @@ export default function Step4Page() {
                 </div>
               )}
 
+              {/* Template Options — hidden until template system is ready */}
+
               <div className="mt-4 flex gap-2">
                 <input value={refineText} onChange={(e) => setRefineText(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleRefine()}
-                  placeholder="Ask Designer Agent to adjust this slide..." className="input-field flex-1 h-10 text-sm" />
+                  placeholder={t("askDesigner")} className="input-field flex-1 h-10 text-sm" />
                 <button onClick={handleRefine} disabled={!refineText.trim() || refining} className="btn-primary h-10 px-4 text-sm">
-                  {refining ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : "Refine"}
+                  {refining ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : t("refine")}
                 </button>
               </div>
 
               <p className="mt-3 text-xs text-gray-400">
-                Slide {selectedIdx + 1} of {slides.length} &middot; {selected.layout || "title_bullets"} &middot; Double-click to preview fullscreen
+                {t("slide")} {selectedIdx + 1} {t("of")} {slides.length} &middot; {selected.layout || "title_bullets"} &middot; {t("doubleClickPreview")}
               </p>
             </div>
           </div>
@@ -246,10 +280,10 @@ export default function Step4Page() {
       {/* Bottom CTA */}
       <div className="shrink-0 border-t border-gray-200 bg-white px-8 py-4 shadow-[0_-4px_12px_rgb(0,0,0,0.04)]">
         <div className="flex items-center justify-between">
-          <p className="text-xs text-gray-400">{slides.length} slides designed</p>
+          <p className="text-xs text-gray-400">{slides.length} {t("slidesDesigned")}</p>
           <button onClick={() => router.push(`/presentation/${presId}/step5`)} className="btn-primary h-11 px-8">
-            Export Presentation
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+            {t("exportPresentation")}
+            <svg className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
       </div>

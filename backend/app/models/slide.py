@@ -31,6 +31,11 @@ class PresentationSlide(Base):
     content_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     layout: Mapped[str | None] = mapped_column(String(100), nullable=True)
     design_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    template_variation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("template_variations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

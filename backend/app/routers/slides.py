@@ -194,6 +194,7 @@ async def api_generate_designs(
 class DesignUpdateRequest(SlideUpdateRequest):
     layout: str | None = None
     design_json: dict | None = None
+    template_variation_id: str | None = None
 
 
 @router.put("/{presentation_id}/slides/{slide_id}/design", response_model=SlideResponse)
@@ -219,6 +220,9 @@ async def update_slide_design(
         slide.layout = body.layout
     if body.design_json is not None:
         slide.design_json = body.design_json
+    if body.template_variation_id is not None:
+        import uuid as _uuid
+        slide.template_variation_id = _uuid.UUID(body.template_variation_id) if body.template_variation_id else None
     await record_step_change(presentation_id, "design", db)
     await db.flush()
     await db.refresh(slide)

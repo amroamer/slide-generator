@@ -1,4 +1,20 @@
-/** RTL/LTR utilities for slide rendering. */
+/** RTL/LTR utilities and text rendering helpers for slide rendering. */
+
+import React from "react";
+
+/** Parse **bold** markdown into React elements. */
+export function renderMd(text: string): React.ReactNode {
+  if (!text || typeof text !== "string" || !text.includes("**")) return text;
+  const parts = text.split(/\*\*(.*?)\*\*/g);
+  if (parts.length === 1) return text;
+  return React.createElement(React.Fragment, null,
+    ...parts.map((part, i) =>
+      i % 2 === 1
+        ? React.createElement("strong", { key: i }, part)
+        : part || null
+    )
+  );
+}
 
 export function isRTLLanguage(language: string | null | undefined): boolean {
   return language === "arabic" || language === "bilingual";

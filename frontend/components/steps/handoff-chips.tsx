@@ -1,5 +1,7 @@
 "use client";
 
+import { useLanguage } from "@/lib/language-context";
+
 interface Chip {
   label: string;
   stale?: boolean;
@@ -11,10 +13,11 @@ interface Props {
 }
 
 export function HandoffChips({ agentName, chips }: Props) {
+  const { t } = useLanguage();
   if (!chips.length) return null;
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-[10px] font-medium text-gray-400">From {agentName}:</span>
+      <span className="text-[10px] font-medium text-gray-400">{t("fromAgent")} {agentName}:</span>
       {chips.map((chip, i) => (
         <span key={i} className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium ${
           chip.stale ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"

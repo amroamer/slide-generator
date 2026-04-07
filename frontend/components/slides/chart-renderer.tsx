@@ -254,6 +254,79 @@ export function ChartRenderer({ chartData, colors = DEFAULT_COLORS, height = "10
     );
   }
 
+  // ── Gantt ──
+  if (chart_type === "gantt") {
+    // Gantt: each label is a task, dataset values represent duration/progress
+    // If two datasets exist, treat as [start, end]; otherwise treat values as durations
+    const hasStartEnd = datasets.length >= 2;
+    const ganttRows = labels.map((label, i) => {
+      const start = hasStartEnd ? (datasets[0].values[i] ?? 0) : 0;
+      const duration = hasStartEnd ? ((datasets[1].values[i] ?? 0) - start) : (datasets[0].values[i] ?? 0);
+      return { name: label, start, duration, end: start + duration };
+    });
+
+    return (
+      <ResponsiveContainer width="100%" height={height}>
+        <BarChart data={ganttRows} layout="vertical" margin={{ top: 5, right: 8, left: 5, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" opacity={0.3} horizontal={false} />
+          <XAxis type="number" tick={axisStyle} />
+          <YAxis type="category" dataKey="name" tick={axisStyle} width={90} />
+          <Tooltip {...tooltipStyle} formatter={(value: any, name: string) => name === "start" ? [null, null] : [value, "Duration"]} />
+          {/* Invisible bar for offset (start) + visible bar for duration */}
+          <Bar dataKey="start" stackId="gantt" fill="transparent" maxBarSize={20} />
+          <Bar dataKey="duration" stackId="gantt" radius={[0, 4, 4, 0]} maxBarSize={20}>
+            {ganttRows.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  // ── Timeline ──
+  if (chart_type === "timeline") {
+    // Timeline: labels are milestones/events, values are positions on the axis
+    const timelineData = labels.map((label, i) => ({
+      name: label,
+      position: datasets[0]?.values[i] ?? i,
+      y: 0,
+    }));
+
+    return (
+      <ResponsiveContainer width="100%" height={height}>
+        <div className="flex h-full flex-col justify-center px-4">
+          {/* Timeline axis line */}
+          <div className="relative mx-4 my-4">
+            <div className="absolute top-1/2 left-0 right-0 h-0.5 -translate-y-1/2 bg-gray-300" />
+            <div className="relative flex justify-between">
+              {timelineData.map((item, i) => (
+                <div key={i} className="flex flex-col items-center" style={{ flex: 1 }}>
+                  {/* Alternate above/below */}
+                  {i % 2 === 0 ? (
+                    <>
+                      <span className="mb-2 text-center text-[9px] font-medium leading-tight" style={{ color: colors[i % colors.length], maxWidth: "70px" }}>
+                        {item.name}
+                      </span>
+                      <span className="text-[8px] text-gray-400 mb-1">{datasets[0]?.values[i]}</span>
+                      <div className="h-3 w-3 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: colors[i % colors.length] }} />
+                    </>
+                  ) : (
+                    <>
+                      <div className="h-3 w-3 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: colors[i % colors.length] }} />
+                      <span className="text-[8px] text-gray-400 mt-1">{datasets[0]?.values[i]}</span>
+                      <span className="mt-2 text-center text-[9px] font-medium leading-tight" style={{ color: colors[i % colors.length], maxWidth: "70px" }}>
+                        {item.name}
+                      </span>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </ResponsiveContainer>
+    );
+  }
+
   // ── Pie / Donut ──
   if (chart_type === "pie" || chart_type === "donut" || chart_type === "doughnut") {
     if (!datasets[0]) return <ChartFallback />;
@@ -262,6 +335,18 @@ export function ChartRenderer({ chartData, colors = DEFAULT_COLORS, height = "10
     const isDonut = chart_type === "donut" || chart_type === "doughnut";
     const total = pieData.reduce((s, d) => s + d.value, 0);
 
+    // Pre-compute percentages that sum to exactly 100
+    const rawPcts = pieData.map(d => total > 0 ? (d.value / total) * 100 : 0);
+    const flooredPcts = rawPcts.map(p => Math.floor(p));
+    let remainder = 100 - flooredPcts.reduce((a, b) => a + b, 0);
+    const remainders = rawPcts.map((p, i) => ({ i, r: p - flooredPcts[i] })).sort((a, b) => b.r - a.r);
+    for (const item of remainders) {
+      if (remainder <= 0) break;
+      flooredPcts[item.i]++;
+      remainder--;
+    }
+    const pctMap = new Map(pieData.map((d, i) => [d.name, flooredPcts[i]]));
+
     return (
       <ResponsiveContainer width="100%" height={height}>
         <PieChart>
@@ -269,12 +354,22 @@ export function ChartRenderer({ chartData, colors = DEFAULT_COLORS, height = "10
             data={pieData} cx="50%" cy="50%"
             innerRadius={isDonut ? "45%" : 0} outerRadius="75%"
             paddingAngle={2} dataKey="value"
-            label={({ name, percent }) => `${(name || "").slice(0, 12)} ${((percent || 0) * 100).toFixed(0)}%`}
+            label={({ name }) => `${(name || "").slice(0, 12)} ${pctMap.get(name) ?? 0}%`}
             fontSize={8}
             labelLine={{ strokeWidth: 1 }}
           >
             {pieData.map((entry, i) => <Cell key={i} fill={getColor(entry.name, i, semanticColors, colors)} />)}
-            {isDonut && <Label value={`${total}`} position="center" style={{ fontSize: "1.5em", fontWeight: 700, fill: "#374151" }} />}
+            {isDonut && (
+              <Label position="center" content={({ viewBox }: any) => {
+                const { cx, cy } = viewBox;
+                return (
+                  <g>
+                    <text x={cx} y={cy - 4} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: "1.5em", fontWeight: 700, fill: "#374151" }}>{total}</text>
+                    <text x={cx} y={cy + 14} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: "0.6em", fill: "#9CA3AF" }}>Total</text>
+                  </g>
+                );
+              }} />
+            )}
           </Pie>
           <Tooltip {...tooltipStyle} />
           <Legend wrapperStyle={legendStyle} />

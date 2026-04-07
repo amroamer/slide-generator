@@ -1,5 +1,6 @@
 "use client";
 
+import { useLanguage } from "@/lib/language-context";
 import { useState } from "react";
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function StaleWarning({ reason, actionLabel, onAction, loading }: Props) {
+  const { t, isRTL } = useLanguage();
   const [dismissed, setDismissed] = useState(false);
   if (dismissed) return null;
 
@@ -19,7 +21,7 @@ export function StaleWarning({ reason, actionLabel, onAction, loading }: Props) 
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
       </svg>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-amber-800">Upstream data changed</p>
+        <p className="text-sm font-semibold text-amber-800">{t("upstreamChanged")}</p>
         <p className="mt-0.5 text-xs text-amber-600">{reason}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
@@ -28,7 +30,7 @@ export function StaleWarning({ reason, actionLabel, onAction, loading }: Props) 
           {loading ? <div className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-white/30 border-t-white" /> : actionLabel}
         </button>
         <button onClick={() => setDismissed(true)} className="text-xs font-medium text-amber-600 hover:text-amber-800">
-          Dismiss
+          {t("dismiss")}
         </button>
       </div>
     </div>

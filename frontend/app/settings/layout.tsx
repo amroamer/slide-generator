@@ -30,7 +30,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#00338D] to-[#0055B8] shadow-sm">
                   <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
                 </div>
-                <span className="text-lg font-bold tracking-tight text-gray-900">Slides Generator</span>
+                <span className="text-lg font-bold tracking-tight text-gray-900">{t("slidesGenerator")}</span>
               </Link>
               <svg className="h-5 w-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" /></svg>
               <span className="text-sm font-medium text-gray-500">{t("settings")}</span>

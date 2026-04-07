@@ -15,6 +15,7 @@ from app.models.user import User
 from app.routers.presentations import _get_presentation
 from app.services.auth_service import get_current_user
 from app.services.file_parser import parse_file
+from app.services.file_parser_service import build_parsed_data_text
 
 router = APIRouter(prefix="/api/presentations", tags=["inputs"])
 
@@ -39,6 +40,7 @@ class InputResponse(BaseModel):
     prompt: str
     raw_data_json: dict | None = None
     file_paths: list | None = None
+    parsed_data_text: str | None = None
     audience: str | None = None
     tone: str | None = None
     language: str | None = None
@@ -79,6 +81,10 @@ async def save_input(
 
     file_paths, raw_data = _gather_file_data(presentation_id)
 
+    # Parse files into human-readable text with actual cell values
+    upload_dir = os.path.join(UPLOAD_DIR, str(presentation_id))
+    parsed_data_text = await build_parsed_data_text(upload_dir) if file_paths else None
+
     # Upsert presentation_input
     result = await db.execute(
         select(PresentationInput).where(
@@ -91,6 +97,7 @@ async def save_input(
         inp.prompt = body.prompt
         inp.raw_data_json = raw_data
         inp.file_paths = file_paths
+        inp.parsed_data_text = parsed_data_text
         inp.audience = body.audience
         inp.tone = body.tone
         inp.language = body.language
@@ -104,6 +111,7 @@ async def save_input(
             prompt=body.prompt,
             raw_data_json=raw_data,
             file_paths=file_paths,
+            parsed_data_text=parsed_data_text,
             audience=body.audience,
             tone=body.tone,
             language=body.language,
@@ -127,6 +135,22 @@ async def save_input(
         pres.llm_provider = body.llm_provider
     if body.llm_model:
         pres.llm_model = body.llm_model
+
+    # Auto-generate title from prompt if still "Untitled Presentation"
+    if pres.title == "Untitled Presentation" and body.prompt.strip():
+        prompt_text = body.prompt.strip()
+        # Simple extraction: first sentence or first 60 chars
+        for sep in [".", "?", "!", "\n"]:
+            idx = prompt_text.find(sep)
+            if 10 < idx < 80:
+                prompt_text = prompt_text[:idx]
+                break
+        else:
+            prompt_text = prompt_text[:60]
+        # Capitalize and clean
+        auto_title = prompt_text.strip().rstrip(".,;:!?")
+        if len(auto_title) > 5:
+            pres.title = auto_title[:80]
 
     await record_step_change(presentation_id, "input", db)
     await db.flush()

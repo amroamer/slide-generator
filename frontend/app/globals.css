@@ -12,10 +12,22 @@
   }
   body.font-arabic {
     font-family: 'Noto Sans Arabic', Arial, sans-serif;
+    line-height: 1.7;
   }
   [dir="rtl"] .rtl\:flip {
     transform: scaleX(-1);
   }
+  /* RTL form inputs */
+  [dir="rtl"] .input-field {
+    text-align: right;
+  }
+  [dir="rtl"] select.input-field {
+    background-position: left 0.75rem center;
+  }
+  /* RTL sidebar active indicator */
+  [dir="rtl"] .border-s-gray-300 { border-right-width: 3px; border-left-width: 0; border-right-color: #d1d5db; }
+  [dir="rtl"] .border-s-amber-400 { border-right-width: 3px; border-left-width: 0; border-right-color: #fbbf24; }
+  [dir="rtl"] .border-s-emerald-400 { border-right-width: 3px; border-left-width: 0; border-right-color: #34d399; }
   ::selection {
     @apply bg-kpmg-light-blue/20 text-kpmg-blue;
   }

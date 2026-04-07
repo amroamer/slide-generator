@@ -2,6 +2,7 @@
 
 import api from "@/lib/api";
 import { useActiveSlide } from "@/lib/active-slide-context";
+import { useLanguage } from "@/lib/language-context";
 import { useCallback, useEffect, useState } from "react";
 
 interface Props {
@@ -45,6 +46,7 @@ function MiniTable({ columns, rows }: { columns: string[]; rows: any[][] }) {
 }
 
 export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: Props) {
+  const { t } = useLanguage();
   const { activeSlideId } = useActiveSlide();
   const [tab, setTab] = useState(0);
   const [input, setInput] = useState<InputData | null>(null);
@@ -85,9 +87,9 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
   // Collapsed state
   if (!isOpen) {
     return (
-      <button onClick={onToggle} className="flex w-8 shrink-0 flex-col items-center justify-center border-l border-gray-200 bg-gray-100 transition-colors hover:bg-gray-200">
+      <button onClick={onToggle} className="flex w-8 shrink-0 flex-col items-center justify-center border-s border-gray-200 bg-gray-100 transition-colors hover:bg-gray-200">
         <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-        <span className="mt-2 text-[10px] font-medium tracking-wider text-gray-400" style={{ writingMode: "vertical-rl" }}>Context</span>
+        <span className="mt-2 text-[10px] font-medium tracking-wider text-gray-400" style={{ writingMode: "vertical-rl" }}>{t("agentContext")}</span>
       </button>
     );
   }
@@ -95,10 +97,10 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
   const activeSlide = slides.find((s) => s.slide_id === activeSlideId);
 
   return (
-    <div className="flex w-[380px] shrink-0 flex-col border-l border-gray-200 bg-gray-50/80 backdrop-blur-sm animate-slide-in">
+    <div className="flex w-[380px] shrink-0 flex-col border-s border-gray-200 bg-gray-50/80 backdrop-blur-sm animate-slide-in">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-2.5">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-gray-400">Agent Context</span>
+        <span className="text-[10px] font-medium uppercase tracking-wider text-gray-400">{t("agentContext")}</span>
         <button onClick={onToggle} className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         </button>
@@ -127,7 +129,7 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
             {/* Step 1 — Tips */}
             {currentStep === 1 && (
               <div>
-                <MicroLabel>Tips for a great presentation</MicroLabel>
+                <MicroLabel>{t("tipsTitle")}</MicroLabel>
                 <ul className="space-y-2">
                   {["Be specific about your goal \u2014 what decision should the audience make?",
                     "Upload structured data (CSV/Excel) for data-driven slides",
@@ -145,10 +147,10 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
             {/* Intake Brief tab */}
             {tabs[tab]?.id === "intake" && input && (
               <div>
-                <MicroLabel>User Prompt</MicroLabel>
-                <div className="max-h-[200px] overflow-y-auto rounded-lg border bg-white p-3 text-sm text-gray-700">{input.prompt || "No prompt"}</div>
+                <MicroLabel>{t("userPrompt")}</MicroLabel>
+                <div className="max-h-[200px] overflow-y-auto rounded-lg border bg-white p-3 text-sm text-gray-700">{input.prompt || t("noPrompt")}</div>
 
-                <MicroLabel>Uploaded Data</MicroLabel>
+                <MicroLabel>{t("uploadedData")}</MicroLabel>
                 {input.raw_data_json?.files?.map((f: any, i: number) => (
                   <div key={i} className="mb-2 rounded-lg border bg-white p-2.5">
                     <div className="flex items-center gap-2 text-xs font-medium text-gray-800">{f.filename}</div>
@@ -169,12 +171,12 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
                   </div>
                 ))}
 
-                <MicroLabel>Configuration</MicroLabel>
+                <MicroLabel>{t("configuration")}</MicroLabel>
                 <div className="flex flex-wrap gap-1.5">
                   <Chip>{input.audience || "General"}</Chip>
                   <Chip>{input.tone || "Professional"}</Chip>
                   <Chip>{input.language || "English"}</Chip>
-                  <Chip>{input.slide_count} slides</Chip>
+                  <Chip>{input.slide_count} {t("slides")}</Chip>
                 </div>
               </div>
             )}
@@ -182,7 +184,7 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
             {/* Plan Structure tab */}
             {tabs[tab]?.id === "plan" && plan && (
               <div>
-                <MicroLabel>Plan Outline</MicroLabel>
+                <MicroLabel>{t("planOutline")}</MicroLabel>
                 {plan.plan_json.sections?.map((sec: any, si: number) => (
                   <div key={si} className="mb-3">
                     <div className="flex items-center gap-1.5 mb-1">
@@ -202,14 +204,14 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
                     ))}
                   </div>
                 ))}
-                <p className="mt-3 text-[10px] text-gray-400">Plan v{plan.version}</p>
+                <p className="mt-3 text-[10px] text-gray-400">{t("planVersion")}{plan.version}</p>
               </div>
             )}
 
             {/* Source Data tab */}
             {tabs[tab]?.id === "source" && (
               <div>
-                <MicroLabel>Source Data {activeSlideId ? `for active slide` : ""}</MicroLabel>
+                <MicroLabel>{t("sourceData")} {activeSlideId ? t("forActiveSlide") : ""}</MicroLabel>
                 {sourceData?.files?.length ? (
                   sourceData.files.filter((f: any) => f.referenced).map((f: any, i: number) => (
                     <div key={i} className="mb-3 rounded-lg border bg-white p-2.5">
@@ -228,7 +230,7 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-gray-400">No specific data referenced for this slide</p>
+                  <p className="text-xs text-gray-400">{t("noDataReferenced")}</p>
                 )}
               </div>
             )}
@@ -236,11 +238,11 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
             {/* Slide Content tab (Step 4) */}
             {tabs[tab]?.id === "content" && activeSlide && (
               <div>
-                <MicroLabel>Slide Content</MicroLabel>
+                <MicroLabel>{t("slideContent")}</MicroLabel>
                 <p className="text-sm font-semibold text-gray-900 mb-2">{activeSlide.title}</p>
-                {activeSlide.content_json?.body?.content?.map((b: string, i: number) => (
+                {(activeSlide.content_json?.body?.content || []).map((b: any, i: number) => (
                   <p key={i} className="flex items-start gap-1.5 text-xs text-gray-700 mb-1">
-                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-300" />{b}
+                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-300" />{typeof b === "string" ? b : String(b)}
                   </p>
                 ))}
                 {activeSlide.content_json?.key_takeaway && (
@@ -252,7 +254,7 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
                   <p className="mt-2 text-[10px] italic text-gray-400">{activeSlide.content_json.speaker_notes}</p>
                 )}
                 <p className="mt-2 text-[10px] text-gray-400">
-                  {(activeSlide.content_json?.body?.content || []).join(" ").split(/\s+/).length} words
+                  {(activeSlide.content_json?.body?.content || []).join(" ").split(/\s+/).length} {t("words")}
                 </p>
               </div>
             )}
@@ -260,7 +262,7 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
             {/* Summary tab (Step 5) */}
             {tabs[tab]?.id === "summary" && summary && (
               <div>
-                <MicroLabel>Presentation</MicroLabel>
+                <MicroLabel>{t("presentation")}</MicroLabel>
                 <p className="text-sm font-semibold text-gray-900">{summary.title}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <Chip>{summary.language}</Chip>
@@ -268,22 +270,22 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
                   <Chip>{summary.audience || "General"}</Chip>
                   {summary.llm_provider && <Chip>{summary.llm_provider}</Chip>}
                 </div>
-                <MicroLabel>Stats</MicroLabel>
+                <MicroLabel>{t("stats")}</MicroLabel>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="rounded-lg bg-white border p-2 text-center">
                     <p className="text-lg font-bold text-gray-900">{summary.slide_count}</p>
-                    <p className="text-[10px] text-gray-400">slides</p>
+                    <p className="text-[10px] text-gray-400">{t("slides")}</p>
                   </div>
                   <div className="rounded-lg bg-white border p-2 text-center">
                     <p className="text-lg font-bold text-gray-900">{summary.total_words}</p>
-                    <p className="text-[10px] text-gray-400">words</p>
+                    <p className="text-[10px] text-gray-400">{t("words")}</p>
                   </div>
                   <div className="rounded-lg bg-white border p-2 text-center">
                     <p className="text-lg font-bold text-gray-900">~{summary.estimated_minutes}m</p>
-                    <p className="text-[10px] text-gray-400">duration</p>
+                    <p className="text-[10px] text-gray-400">{t("duration")}</p>
                   </div>
                 </div>
-                <MicroLabel>Slides</MicroLabel>
+                <MicroLabel>{t("slides")}</MicroLabel>
                 <div className="space-y-1">
                   {summary.slides?.map((s: any, i: number) => (
                     <div key={i} className="flex items-center gap-2 text-xs">
@@ -293,7 +295,7 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
                     </div>
                   ))}
                 </div>
-                <MicroLabel>Data Sources</MicroLabel>
+                <MicroLabel>{t("sourceData")}</MicroLabel>
                 <div className="flex flex-wrap gap-1.5">
                   {summary.data_sources?.map((f: string, i: number) => <Chip key={i}>{f}</Chip>)}
                   {(!summary.data_sources || summary.data_sources.length === 0) && <p className="text-[10px] text-gray-400">None</p>}
@@ -310,10 +312,10 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
 function getTabs(step: number): { id: string; label: string }[] {
   switch (step) {
     case 1: return [{ id: "tips", label: "Getting Started" }];
-    case 2: return [{ id: "intake", label: "Intake Brief" }];
-    case 3: return [{ id: "intake", label: "Intake" }, { id: "plan", label: "Plan" }, { id: "source", label: "Source Data" }];
-    case 4: return [{ id: "intake", label: "Intake" }, { id: "plan", label: "Plan" }, { id: "content", label: "Content" }];
+    case 2: return [{ id: "intake", label: "Setup Brief" }];
+    case 3: return [{ id: "intake", label: "Setup" }, { id: "plan", label: "Plan" }, { id: "source", label: "Source Data" }];
+    case 4: return [{ id: "intake", label: "Setup" }, { id: "plan", label: "Plan" }, { id: "content", label: "Content" }];
     case 5: return [{ id: "summary", label: "Summary" }];
-    default: return [{ id: "intake", label: "Intake" }];
+    default: return [{ id: "intake", label: "Setup" }];
   }
 }

@@ -353,19 +353,17 @@ function CardMenu({
               Set as Default
             </button>
           )}
-          {!profile.is_system && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpen(false);
-                onDelete();
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-            >
-              <TrashIcon className="h-4 w-4 text-red-400" />
-              Delete
-            </button>
-          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+              onDelete();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <TrashIcon className="h-4 w-4 text-red-400" />
+            Delete
+          </button>
         </div>
       )}
     </div>
@@ -376,9 +374,11 @@ function CardMenu({
 function ProfileCard({
   profile,
   onMutate,
+  onRequestDelete,
 }: {
   profile: BrandProfile;
   onMutate: () => void;
+  onRequestDelete: (profile: BrandProfile) => void;
 }) {
   const router = useRouter();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -390,7 +390,7 @@ function ProfileCard({
       await api.post(`/brand-profiles/${profile.id}/duplicate`);
       onMutate();
     } catch {
-      // swallow - could add toast
+      // swallow
     } finally {
       setActing(false);
     }
@@ -400,19 +400,6 @@ function ProfileCard({
     setActing(true);
     try {
       await api.post(`/brand-profiles/${profile.id}/set-default`);
-      onMutate();
-    } catch {
-      // swallow
-    } finally {
-      setActing(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!window.confirm(`Delete "${profile.name}"? This cannot be undone.`)) return;
-    setActing(true);
-    try {
-      await api.delete(`/brand-profiles/${profile.id}`);
       onMutate();
     } catch {
       // swallow
@@ -488,7 +475,7 @@ function ProfileCard({
             profile={profile}
             onDuplicate={handleDuplicate}
             onSetDefault={handleSetDefault}
-            onDelete={handleDelete}
+            onDelete={() => onRequestDelete(profile)}
           />
         </div>
       </div>
@@ -503,6 +490,8 @@ export default function BrandProfilesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<BrandProfile | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchProfiles = useCallback(async () => {
     setLoading(true);
@@ -532,6 +521,20 @@ export default function BrandProfilesPage() {
       // swallow
     } finally {
       setSeeding(false);
+    }
+  };
+
+  const executeDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/brand-profiles/${deleteTarget.id}`);
+      setDeleteTarget(null);
+      fetchProfiles();
+    } catch {
+      // swallow
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -620,8 +623,48 @@ export default function BrandProfilesPage() {
               key={profile.id}
               profile={profile}
               onMutate={fetchProfiles}
+              onRequestDelete={setDeleteTarget}
             />
           ))}
+        </div>
+      )}
+
+      {/* Delete confirmation dialog */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in" onClick={() => !deleting && setDeleteTarget(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-modal animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+              <TrashIcon className="h-6 w-6 text-red-600" />
+            </div>
+            <h3 className="mb-2 text-center text-lg font-semibold text-gray-900">
+              Delete &ldquo;{deleteTarget.name}&rdquo;?
+            </h3>
+            <p className="mb-6 text-center text-sm text-gray-500">
+              This brand profile will be permanently deleted. Presentations using it will fall back to the default theme.
+            </p>
+            <div className="mb-6 overflow-hidden rounded-lg border border-gray-200">
+              <BrandPreviewSlide profile={deleteTarget} />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteTarget(null)} disabled={deleting} className="btn-secondary flex-1">
+                Cancel
+              </button>
+              <button
+                onClick={executeDelete}
+                disabled={deleting}
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-red-700 active:scale-[0.98] disabled:opacity-50"
+              >
+                {deleting ? (
+                  <SpinnerIcon className="h-4 w-4" />
+                ) : (
+                  <>
+                    <TrashIcon className="h-4 w-4" />
+                    Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

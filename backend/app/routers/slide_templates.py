@@ -13,6 +13,7 @@ from app.schemas.slide_template import (
     TemplateCollectionUpdate,
     TemplateVariationResponse,
     TemplateVariationUpdate,
+    SetPrimaryRequest,
 )
 from app.services.auth_service import get_current_user
 from app.services.template_applier import apply_variation_to_slide
@@ -31,10 +32,14 @@ def _variation_to_response(v: TemplateVariation) -> dict:
         "id": v.id,
         "collection_id": v.collection_id,
         "variation_index": v.variation_index,
-        "variation_name": v.variation_name,
+        "variation_name": v.custom_name or v.auto_name or v.variation_name,
+        "auto_name": v.auto_name,
+        "custom_name": v.custom_name,
         "thumbnail_path": v.thumbnail_path,
         "tags": v.tags,
         "is_favorite": v.is_favorite,
+        "is_enabled": v.is_enabled,
+        "is_primary": v.is_primary,
         "usage_count": v.usage_count,
         "design_summary": {
             "layout_style": design.get("layout_style"),
@@ -55,6 +60,8 @@ async def upload_template(
     description: str = Form(None),
     icon: str = Form(None),
     color: str = Form(None),
+    slide_type_category: str = Form(None),
+    mapped_slide_types: str = Form(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -72,6 +79,15 @@ async def upload_template(
     with open(file_path, "wb") as f:
         f.write(content)
 
+    # Parse mapped_slide_types from comma-separated string
+    import json
+    types_list = None
+    if mapped_slide_types:
+        try:
+            types_list = json.loads(mapped_slide_types)
+        except (json.JSONDecodeError, TypeError):
+            types_list = [s.strip() for s in mapped_slide_types.split(",") if s.strip()]
+
     # Process
     result = await process_template_upload(
         file_path=file_path,
@@ -81,9 +97,89 @@ async def upload_template(
         color=color,
         user_id=current_user.id,
         db=db,
+        slide_type_category=slide_type_category,
+        mapped_slide_types=types_list,
     )
 
     return result
+
+
+SLIDE_TYPE_TO_CATEGORIES: dict[str, list[str]] = {
+    "table": ["tables"],
+    "title_table": ["tables"],
+    "chart": ["charts", "kpi"],
+    "title_chart": ["charts", "kpi"],
+    "content": ["content"],
+    "title_bullets": ["content"],
+    "summary": ["takeaway", "title"],
+    "key_takeaway": ["takeaway"],
+    "comparison": ["comparison"],
+    "two_column": ["comparison"],
+    "section_divider": ["divider"],
+    "title_slide": ["title"],
+    "title": ["title"],
+}
+
+
+@router.get("/match")
+async def match_collections(
+    slide_type: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Find template collections matching a slide type."""
+    from sqlalchemy import or_
+
+    categories = SLIDE_TYPE_TO_CATEGORIES.get(slide_type, [])
+    if not categories:
+        # Fallback: try "content" and "mixed" for unknown types
+        categories = ["content", "mixed"]
+
+    # Find collections matching any of the categories
+    result = await db.execute(
+        select(TemplateCollection)
+        .where(
+            or_(
+                TemplateCollection.user_id == current_user.id,
+                TemplateCollection.is_system == True,  # noqa: E712
+            ),
+            TemplateCollection.slide_type_category.in_(categories),
+        )
+        .order_by(TemplateCollection.name)
+    )
+    collections = result.scalars().all()
+
+    items = []
+    for c in collections:
+        vars_result = await db.execute(
+            select(TemplateVariation)
+            .where(
+                TemplateVariation.collection_id == c.id,
+                TemplateVariation.is_enabled == True,  # noqa: E712
+            )
+            .order_by(TemplateVariation.is_primary.desc(), TemplateVariation.variation_index)
+        )
+        variations = vars_result.scalars().all()
+        items.append({
+            "id": c.id,
+            "name": c.name,
+            "slide_type_category": c.slide_type_category,
+            "variation_count": len(variations),
+            "variations": [
+                {
+                    "id": v.id,
+                    "name": v.custom_name or v.auto_name or v.variation_name,
+                    "thumbnail_path": v.thumbnail_path,
+                    "is_primary": v.is_primary,
+                    "is_enabled": v.is_enabled,
+                    "layout_template_key": v.layout_template_key or "full_width",
+                    "quality_score": (v.metrics_json or {}).get("quality_score", 0),
+                }
+                for v in variations
+            ],
+        })
+
+    return {"collections": items}
 
 
 @router.get("")
@@ -123,6 +219,9 @@ async def list_collections(
             "source_filename": c.source_filename,
             "variation_count": c.variation_count,
             "is_system": c.is_system,
+            "slide_type_category": c.slide_type_category,
+            "mapped_slide_types": c.mapped_slide_types,
+            "extracted_colors": c.extracted_colors,
             "created_at": c.created_at,
             "preview_variations": variations,
         })
@@ -158,6 +257,9 @@ async def get_collection(
         "source_filename": collection.source_filename,
         "variation_count": collection.variation_count,
         "is_system": collection.is_system,
+        "slide_type_category": collection.slide_type_category,
+        "mapped_slide_types": collection.mapped_slide_types,
+        "extracted_colors": collection.extracted_colors,
         "created_at": collection.created_at,
         "variations": [_variation_to_response(v) for v in vars_result.scalars().all()],
     }
@@ -264,7 +366,7 @@ async def delete_variation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a single variation. If last variation, deletes collection too."""
+    """Delete a single variation with guards for primary/last."""
     # Verify collection ownership
     collection = (await db.execute(
         select(TemplateCollection).where(
@@ -283,6 +385,14 @@ async def delete_variation(
     )).scalar_one_or_none()
     if not variation:
         raise HTTPException(status_code=404, detail="Variation not found")
+
+    # Guard: cannot delete primary variation
+    if variation.is_primary and collection.variation_count > 1:
+        raise HTTPException(status_code=400, detail="Set another variation as primary first")
+
+    # Guard: cannot delete last remaining variation
+    if collection.variation_count <= 1:
+        raise HTTPException(status_code=400, detail="Cannot delete the last variation. Delete the collection instead.")
 
     # Delete thumbnail file
     if variation.thumbnail_path:
@@ -390,3 +500,40 @@ async def get_variation_objects(
         "background": objects.get("background"),
         "objects": objects.get("objects", []),
     }
+
+
+@router.put("/{collection_id}/primary")
+async def set_primary_variation(
+    collection_id: uuid.UUID,
+    body: SetPrimaryRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set which variation is the primary/default for a collection."""
+    collection = (await db.execute(
+        select(TemplateCollection).where(TemplateCollection.id == collection_id)
+    )).scalar_one_or_none()
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    target = (await db.execute(
+        select(TemplateVariation).where(
+            TemplateVariation.id == body.variation_id,
+            TemplateVariation.collection_id == collection_id,
+        )
+    )).scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="Variation not found")
+
+    if not target.is_enabled:
+        raise HTTPException(status_code=400, detail="Cannot set a disabled variation as primary")
+
+    # Clear previous primary
+    all_vars = (await db.execute(
+        select(TemplateVariation).where(TemplateVariation.collection_id == collection_id)
+    )).scalars().all()
+    for v in all_vars:
+        v.is_primary = (v.id == body.variation_id)
+    await db.flush()
+
+    return {"primary_variation_id": str(body.variation_id)}

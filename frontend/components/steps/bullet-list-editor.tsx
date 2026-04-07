@@ -1,5 +1,6 @@
 "use client";
 
+import { useLanguage } from "@/lib/language-context";
 import { useState } from "react";
 
 interface Props {
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function BulletListEditor({ items, onChange }: Props) {
+  const { isRTL, t } = useLanguage();
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   function update(idx: number, value: string) {
@@ -33,9 +35,9 @@ export function BulletListEditor({ items, onChange }: Props) {
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5" dir={isRTL ? "rtl" : "ltr"}>
       {items.map((item, i) => (
-        <div key={i} className="group/bullet flex items-start gap-2">
+        <div key={i} className={`group/bullet flex items-start gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
           {/* Bullet marker */}
           <span className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300" />
 
@@ -50,19 +52,20 @@ export function BulletListEditor({ items, onChange }: Props) {
                 if (e.key === "Enter") { e.preventDefault(); setEditingIdx(null); }
                 if (e.key === "Escape") setEditingIdx(null);
               }}
-              className="flex-1 rounded border border-[#0091DA] bg-white px-2 py-0.5 text-sm outline-none focus:ring-2 focus:ring-[#0091DA]/20"
+              dir={isRTL ? "rtl" : "ltr"}
+              className={`flex-1 rounded border border-[#0091DA] bg-white px-2 py-0.5 text-sm outline-none focus:ring-2 focus:ring-[#0091DA]/20 ${isRTL ? "text-right" : "text-left"}`}
             />
           ) : (
             <span
               onClick={() => setEditingIdx(i)}
-              className="flex-1 cursor-pointer text-sm text-gray-600 hover:text-gray-900"
+              className={`flex-1 cursor-pointer text-sm text-gray-600 hover:text-gray-900 ${isRTL ? "text-right" : "text-left"}`}
             >
-              {item || <span className="italic text-gray-400">Empty bullet</span>}
+              {item || <span className="italic text-gray-400">{t("emptyBullet") || "Empty bullet"}</span>}
             </span>
           )}
 
           {/* Actions */}
-          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/bullet:opacity-100">
+          <div className={`flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/bullet:opacity-100 ${isRTL ? "flex-row-reverse" : ""}`}>
             <button onClick={() => move(i, "up")} disabled={i === 0}
               className="rounded p-0.5 text-gray-300 hover:text-gray-500 disabled:opacity-30">
               <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
@@ -79,9 +82,9 @@ export function BulletListEditor({ items, onChange }: Props) {
       ))}
 
       <button onClick={add}
-        className="flex items-center gap-1 text-xs font-medium text-[#0091DA] transition-colors hover:text-[#00338D]">
+        className={`flex items-center gap-1 text-xs font-medium text-[#0091DA] transition-colors hover:text-[#00338D] ${isRTL ? "flex-row-reverse" : ""}`}>
         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-        Add bullet
+        {t("addBullet") || "Add bullet"}
       </button>
     </div>
   );

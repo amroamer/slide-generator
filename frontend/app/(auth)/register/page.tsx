@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth-context";
+import { useLanguage } from "@/lib/language-context";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
@@ -8,6 +9,7 @@ import { FormEvent, useState } from "react";
 export default function RegisterPage() {
   const { register } = useAuth();
   const router = useRouter();
+  const { t } = useLanguage();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,11 +21,11 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError(t("passwordsNoMatch"));
       return;
     }
     if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+      setError(t("passwordTooShort"));
       return;
     }
     setLoading(true);
@@ -31,7 +33,7 @@ export default function RegisterPage() {
       await register(name, email, password);
       router.push("/dashboard");
     } catch (err: any) {
-      setError(err?.response?.data?.detail || "Registration failed. Please try again.");
+      setError(err?.response?.data?.detail || t("registrationFailed"));
     } finally {
       setLoading(false);
     }
@@ -43,15 +45,15 @@ export default function RegisterPage() {
         {/* Wordmark */}
         <div className="mb-10 text-center">
           <h1 className="text-3xl font-bold tracking-tight text-[#00338D]">
-            Slides Generator
+            {t("slidesGenerator")}
           </h1>
-          <p className="mt-1.5 text-sm font-medium text-gray-400">by KPMG</p>
+          <p className="mt-1.5 text-sm font-medium text-gray-400">{t("byKPMG")}</p>
         </div>
 
         {/* Card */}
         <div className="card p-8">
           <h2 className="mb-6 text-xl font-semibold text-gray-900">
-            Create your account
+            {t("createYourAccount")}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -63,45 +65,45 @@ export default function RegisterPage() {
 
             <div>
               <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-gray-700">
-                Full Name
+                {t("fullName")}
               </label>
-              <input id="name" type="text" required value={name} onChange={(e) => setName(e.target.value)} className="input-field" placeholder="John Doe" />
+              <input id="name" type="text" required value={name} onChange={(e) => setName(e.target.value)} className="input-field" />
             </div>
 
             <div>
               <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-gray-700">
-                Email
+                {t("email")}
               </label>
-              <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="input-field" placeholder="you@kpmg.com" />
+              <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="input-field" placeholder={t("emailPlaceholder")} dir="ltr" />
             </div>
 
             <div>
               <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-gray-700">
-                Password
+                {t("password")}
               </label>
-              <input id="password" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="input-field" placeholder="Minimum 8 characters" />
+              <input id="password" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="input-field" placeholder={t("minCharsPlaceholder")} dir="ltr" />
             </div>
 
             <div>
               <label htmlFor="confirmPassword" className="mb-1.5 block text-sm font-medium text-gray-700">
-                Confirm Password
+                {t("confirmPassword")}
               </label>
-              <input id="confirmPassword" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="input-field" placeholder="Re-enter password" />
+              <input id="confirmPassword" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="input-field" placeholder={t("reenterPassword")} dir="ltr" />
             </div>
 
             <button type="submit" disabled={loading} className="btn-primary h-12 w-full text-base">
               {loading ? (
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
               ) : (
-                "Create account"
+                t("createAccount")
               )}
             </button>
           </form>
 
           <p className="mt-8 text-center text-sm text-gray-500">
-            Already have an account?{" "}
+            {t("alreadyHaveAccount")}{" "}
             <Link href="/login" className="font-medium text-[#0091DA] transition-colors hover:text-[#00338D]">
-              Sign in
+              {t("signIn")}
             </Link>
           </p>
         </div>

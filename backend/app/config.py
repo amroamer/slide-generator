@@ -23,11 +23,9 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # LLM Providers
-    ANTHROPIC_API_KEY: str = ""
-    OPENAI_API_KEY: str = ""
     OLLAMA_BASE_URL: str = "http://host.docker.internal:11434"
-    DEFAULT_LLM_PROVIDER: str = "claude"
-    DEFAULT_LLM_MODEL: str = "claude-sonnet-4-20250514"
+    DEFAULT_LLM_PROVIDER: str = "ollama"
+    DEFAULT_LLM_MODEL: str = "gemma4:latest"
 
     # Application
     UPLOAD_MAX_SIZE_MB: int = 25
