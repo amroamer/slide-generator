@@ -452,9 +452,9 @@ export default function Step2Page() {
           {pres && !generating && (
             <div className="mb-4">
               <HandoffChips agentName={t("intakeAgent")} chips={[
-                { label: `${pres.audience || t("general")} ${t("audience")}` },
-                { label: pres.tone || t("professional") },
-                { label: pres.language || t("english") },
+                { label: `${t(pres.audience || "") || pres.audience || t("general")} ${t("audience")}` },
+                { label: t(pres.tone || "") || pres.tone || t("professional") },
+                { label: t(pres.language || "") || pres.language || t("english") },
                 { label: `${pres.slide_count} ${t("slidesTarget")}` },
               ]} />
             </div>

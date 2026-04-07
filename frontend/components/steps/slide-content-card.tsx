@@ -74,9 +74,17 @@ function wordCount(content: any): number {
 
 export function SlideContentCard({ slide, index, expanded, onToggle, onUpdate, onRefine, onRequestAlternatives, saving, saved, refining }: Props) {
   const { t, isRTL } = useLanguage();
-  const writerActions: QuickAction[] = WRITER_ACTIONS_BASE.map((a) => ({ name: a.name, label: t(a.labelKey), icon: a.icon, prompt: a.prompt }));
+  const labelMap: Record<string, string> = {};
+  for (const a of WRITER_ACTIONS_BASE) {
+    const translated = t(a.labelKey);
+    labelMap[a.name] = translated;
+    labelMap[a.name.replace(/-/g, "_")] = translated;
+  }
+  const writerActions: QuickAction[] = WRITER_ACTIONS_BASE.map((a) => ({ name: a.name, label: labelMap[a.name], icon: a.icon, prompt: a.prompt }));
   const dynamicActionsRaw = useQuickActions("quick_action.writer");
-  const dynamicActions: QuickAction[] = dynamicActionsRaw.map((a) => ({ name: a.name, label: a.label, icon: a.icon, prompt: a.prompt }));
+  const dynamicActions: QuickAction[] = dynamicActionsRaw.map((a) => ({
+    name: a.name, label: labelMap[a.name] || labelMap[a.name.replace(/-/g, "_")] || a.label, icon: a.icon, prompt: a.prompt,
+  }));
   const cj = slide.content_json || {};
   const rawBody = cj.body || {};
   const body = typeof rawBody === "object" && !Array.isArray(rawBody) ? rawBody : { type: "bullets", content: Array.isArray(rawBody) ? rawBody : [] };

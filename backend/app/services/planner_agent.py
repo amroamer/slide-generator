@@ -545,6 +545,11 @@ async def _generate_plan_progressive(task_id: str, ctx: dict):
                 endpoint_url=endpoint_url,
                 model=model,
             )
+            # Inject anti-hallucination rules
+            from app.services.llm_resolver import _load_anti_hallucination
+            rules = await _load_anti_hallucination(db)
+            if rules:
+                provider.set_system_suffix(rules)
             logger.info("Progressive plan task %s: LLM resolved %s/%s", task_id, provider_name, model)
 
             lang = ctx["language"]

@@ -2,6 +2,8 @@
 
 import json
 
+from app.prompts.planner import DATA_INTEGRITY_RULES, WRITER_DATA_INTEGRITY_RULES, DATA_REINFORCEMENT
+
 
 def get_output_format_for_slide_type(slide_type: str, slide_id: str = "sl1") -> str:
     """Return the exact JSON schema the LLM must produce for this slide_type."""
@@ -80,6 +82,8 @@ def build_single_slide_system_prompt(language: str, tone: str, audience: str) ->
         "\n- When slide_type is 'table': you MUST include a data_table field with headers and rows arrays containing actual data. Do NOT substitute bullet points."
         "\n- When slide_type is 'chart': you MUST include a chart_data field with chart_type, labels, and datasets arrays containing actual numbers. Do NOT substitute bullet points."
         "\n- A table slide without data_table, or a chart slide without chart_data, is a FAILURE."
+        + DATA_INTEGRITY_RULES
+        + WRITER_DATA_INTEGRITY_RULES
     )
     tone_map = {
         "Formal Board-Level": "\n\nTone: Use authoritative executive language. Lead with conclusions, support with data.",
@@ -126,13 +130,15 @@ def build_single_slide_user_prompt(
     if source_data:
         if "_parsed_text" in source_data:
             parts.append(
-                "\nSOURCE DATA (use actual values from this data in your slide content):\n"
+                "\nSOURCE DATA FROM UPLOADED FILES:\n"
                 + source_data["_parsed_text"][:4000]
+                + "\n\n" + DATA_REINFORCEMENT
             )
         else:
             parts.append(
-                "\nSOURCE DATA (use actual values from this data in your slide content):\n"
+                "\nSOURCE DATA FROM UPLOADED FILES:\n"
                 + json.dumps(source_data, indent=2)[:4000]
+                + "\n\n" + DATA_REINFORCEMENT
             )
 
     # Output format based on slide_type

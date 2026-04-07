@@ -290,7 +290,7 @@ export default function Step4Page() {
 
       {/* Fullscreen preview */}
       {fullscreen && (
-        <FullscreenPreview slides={slides} initialIndex={selectedIdx} onClose={() => setFullscreen(false)} language={pres?.language} />
+        <FullscreenPreview slides={slides} initialIndex={selectedIdx} onClose={() => setFullscreen(false)} language={pres?.language} primary={brandColors.primary} accent={brandColors.accent} />
       )}
     </div>
   );

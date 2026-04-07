@@ -36,20 +36,35 @@ const TYPE_COLORS: Record<string, string> = {
   section_divider: "bg-gray-100 text-gray-500",
 };
 
-const PLANNER_ACTIONS: QuickAction[] = [
-  { name: "data-driven", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z", label: "Data-driven", prompt: "Restructure this slide to be data-driven. Reference specific metrics, numbers, and KPIs from the uploaded data. Replace vague statements with concrete data points." },
-  { name: "comparison", icon: "M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4", label: "Comparison", prompt: "Add a comparison element to this slide. Compare current vs previous period, target vs actual, or before vs after. Structure the content to highlight the delta." },
-  { name: "trends", icon: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6", label: "Trends", prompt: "Refocus this slide on trends and patterns over time. Highlight what's improving, declining, or stable." },
-  { name: "recommendations", icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z", label: "Recommendations", prompt: "Add 2-3 actionable recommendations based on the data. Each should be specific, measurable, and assigned to a stakeholder." },
-  { name: "visual", icon: "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z", label: "More visual", prompt: "Make this slide more visual. Convert bullets into chart suggestions, add data callout boxes. Minimize text, maximize visual impact." },
-  { name: "shorter", icon: "M20 12H4", label: "Shorter", prompt: "Reduce content by 40-50%. Keep only critical points. Maximum 3-4 bullets. Remove supporting detail, keep conclusions." },
-  { name: "longer", icon: "M12 4v16m8-8H4", label: "Longer", prompt: "Expand with more detail. Add supporting data points, context, and evidence. Aim for 5-7 bullets." },
+const SLIDE_TYPE_KEYS: Record<string, string> = {
+  title: "slideTypeTitle", content: "slideTypeContent", chart: "slideTypeChart",
+  table: "slideTypeTable", comparison: "slideTypeComparison", summary: "slideTypeSummary",
+  section_divider: "slideTypeSectionDivider",
+};
+
+const PLANNER_ACTIONS_BASE = [
+  { name: "data-driven", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z", labelKey: "dataDriven", prompt: "Restructure this slide to be data-driven. Reference specific metrics, numbers, and KPIs from the uploaded data. Replace vague statements with concrete data points." },
+  { name: "comparison", icon: "M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4", labelKey: "comparison", prompt: "Add a comparison element to this slide. Compare current vs previous period, target vs actual, or before vs after. Structure the content to highlight the delta." },
+  { name: "trends", icon: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6", labelKey: "trends", prompt: "Refocus this slide on trends and patterns over time. Highlight what's improving, declining, or stable." },
+  { name: "recommendations", icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z", labelKey: "recommendations", prompt: "Add 2-3 actionable recommendations based on the data. Each should be specific, measurable, and assigned to a stakeholder." },
+  { name: "visual", icon: "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z", labelKey: "moreVisual", prompt: "Make this slide more visual. Convert bullets into chart suggestions, add data callout boxes. Minimize text, maximize visual impact." },
+  { name: "shorter", icon: "M20 12H4", labelKey: "shorter", prompt: "Reduce content by 40-50%. Keep only critical points. Maximum 3-4 bullets. Remove supporting detail, keep conclusions." },
+  { name: "longer", icon: "M12 4v16m8-8H4", labelKey: "longer", prompt: "Expand with more detail. Add supporting data points, context, and evidence. Aim for 5-7 bullets." },
 ];
 
 export function PlanSlideRow({ slide, index, totalInSection, onUpdate, onRefine, onDelete, onMove, refining, isNew }: Props) {
   const { t } = useLanguage();
+  const labelMap: Record<string, string> = {};
+  for (const a of PLANNER_ACTIONS_BASE) {
+    const translated = t(a.labelKey);
+    labelMap[a.name] = translated;
+    labelMap[a.name.replace(/-/g, "_")] = translated;
+  }
+  const plannerActions: QuickAction[] = PLANNER_ACTIONS_BASE.map((a) => ({ name: a.name, label: labelMap[a.name], icon: a.icon, prompt: a.prompt }));
   const dynamicActionsRaw = useQuickActions("quick_action.planner");
-  const dynamicActions: QuickAction[] = dynamicActionsRaw.map((a) => ({ name: a.name, label: a.label, icon: a.icon, prompt: a.prompt }));
+  const dynamicActions: QuickAction[] = dynamicActionsRaw.map((a) => ({
+    name: a.name, label: labelMap[a.name] || labelMap[a.name.replace(/-/g, "_")] || a.label, icon: a.icon, prompt: a.prompt,
+  }));
   const [expanded, setExpanded] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [refineText, setRefineText] = useState("");
@@ -99,7 +114,7 @@ export function PlanSlideRow({ slide, index, totalInSection, onUpdate, onRefine,
             <p onClick={() => setEditingTitle(true)} className="cursor-pointer truncate text-sm font-medium text-gray-900 hover:text-[#00338D]">{slide.slide_title}</p>
           )}
         </div>
-        <span className={`badge shrink-0 text-[10px] uppercase tracking-wider ${typeColor}`}>{slide.slide_type.replace("_", " ")}</span>
+        <span className={`badge shrink-0 text-[10px] uppercase tracking-wider ${typeColor}`}>{SLIDE_TYPE_KEYS[slide.slide_type] ? t(SLIDE_TYPE_KEYS[slide.slide_type]) : slide.slide_type.replace("_", " ")}</span>
         {showNew && <span className="badge bg-blue-100 text-blue-700 text-[9px] animate-fade-in">NEW</span>}
         <button onClick={onDelete} className="shrink-0 rounded p-1 text-gray-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -131,7 +146,7 @@ export function PlanSlideRow({ slide, index, totalInSection, onUpdate, onRefine,
 
           {/* Quick action pills — shared component */}
           <div className="mb-3">
-            <QuickActionPills actions={dynamicActions.length > 0 ? dynamicActions : PLANNER_ACTIONS} onAction={handleQuickAction} disabled={refining} />
+            <QuickActionPills actions={dynamicActions.length > 0 ? dynamicActions : plannerActions} onAction={handleQuickAction} disabled={refining} />
           </div>
 
           {/* Manual refine */}

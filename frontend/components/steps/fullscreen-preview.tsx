@@ -4,9 +4,9 @@ import { SlideRenderer } from "@/components/slides/slide-renderer";
 import { useCallback, useEffect, useState } from "react";
 
 interface Slide { slide_id: string; title: string; content_json: any; layout: string | null; design_json: any }
-interface Props { slides: Slide[]; initialIndex: number; onClose: () => void; language?: string }
+interface Props { slides: Slide[]; initialIndex: number; onClose: () => void; language?: string; primary?: string; accent?: string }
 
-export function FullscreenPreview({ slides, initialIndex, onClose, language }: Props) {
+export function FullscreenPreview({ slides, initialIndex, onClose, language, primary, accent }: Props) {
   const [idx, setIdx] = useState(initialIndex);
   const [showHint, setShowHint] = useState(true);
 
@@ -52,7 +52,7 @@ export function FullscreenPreview({ slides, initialIndex, onClose, language }: P
         {/* Slide */}
         <div className="max-w-[85vw] max-h-[80vh] w-full" style={{ aspectRatio: "16/9", maxWidth: "min(85vw, 142.22vh)" }}>
           <div className="h-full w-full overflow-hidden rounded-xl shadow-2xl">
-            <SlideRenderer content={slide.content_json} layout={slide.layout || "title_bullets"} designJson={slide.design_json} slideNumber={idx + 1} language={language} />
+            <SlideRenderer content={slide.content_json} layout={slide.layout || "title_bullets"} designJson={slide.design_json} slideNumber={idx + 1} language={language} primary={primary} accent={accent} />
           </div>
         </div>
 
@@ -70,7 +70,7 @@ export function FullscreenPreview({ slides, initialIndex, onClose, language }: P
             className={`shrink-0 w-[72px] overflow-hidden rounded border-2 transition-all ${i === idx ? "border-white shadow-lg" : "border-transparent opacity-50 hover:opacity-80"}`}>
             <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
               <div className="absolute left-0 top-0 w-[720px] origin-top-left" style={{ transform: "scale(0.1)" }}>
-                <SlideRenderer content={sl.content_json} layout={sl.layout || "title_bullets"} language={language} className="pointer-events-none" />
+                <SlideRenderer content={sl.content_json} layout={sl.layout || "title_bullets"} language={language} primary={primary} accent={accent} className="pointer-events-none" />
               </div>
             </div>
           </button>

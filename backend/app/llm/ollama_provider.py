@@ -16,7 +16,7 @@ class OllamaProvider(LLMProvider):
         self.endpoint_url = endpoint_url.rstrip("/")
         self.default_model = model or DEFAULT_MODEL
 
-    async def generate(
+    async def _generate_impl(
         self,
         system_prompt: str,
         user_prompt: str,

@@ -24,8 +24,10 @@ export function textAlign(isRTL: boolean): string {
   return isRTL ? "text-right" : "text-left";
 }
 
-export function flexDir(isRTL: boolean): string {
-  return isRTL ? "flex-row-reverse" : "flex-row";
+export function flexDir(_isRTL: boolean): string {
+  // dir="rtl" on the parent container already reverses flex flow.
+  // Adding flex-row-reverse would double-reverse back to LTR.
+  return "flex-row";
 }
 
 export function borderSide(isRTL: boolean): string {

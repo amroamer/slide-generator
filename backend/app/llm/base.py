@@ -13,7 +13,14 @@ class LLMProvider(ABC):
 
     provider_name: str
 
-    @abstractmethod
+    # Anti-hallucination suffix injected into all system prompts.
+    # Set by the factory/resolver after loading from DB.
+    _system_suffix: str = ""
+
+    def set_system_suffix(self, suffix: str) -> None:
+        """Set a suffix that will be appended to every system prompt."""
+        self._system_suffix = suffix
+
     async def generate(
         self,
         system_prompt: str,
@@ -21,7 +28,23 @@ class LLMProvider(ABC):
         model: str | None = None,
         json_mode: bool = True,
     ) -> dict:
-        """Send prompts to the LLM and return parsed JSON (or raw dict)."""
+        """Send prompts to the LLM with auto-injected system suffix."""
+        final_system = system_prompt
+        if self._system_suffix:
+            final_system = system_prompt + "\n\n" + self._system_suffix
+        return await self._generate_impl(
+            final_system, user_prompt, model=model, json_mode=json_mode
+        )
+
+    @abstractmethod
+    async def _generate_impl(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str | None = None,
+        json_mode: bool = True,
+    ) -> dict:
+        """Provider-specific implementation. Subclasses override this."""
 
     @abstractmethod
     def get_available_models(self) -> list[dict]:

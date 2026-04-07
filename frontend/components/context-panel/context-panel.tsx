@@ -82,7 +82,7 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
   }, [isOpen, activeSlideId, presentationId, currentStep]);
 
   // Tab definitions per step
-  const tabs = getTabs(currentStep);
+  const tabs = getTabs(currentStep, t);
 
   // Collapsed state
   if (!isOpen) {
@@ -109,10 +109,10 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
       {/* Tabs */}
       {tabs.length > 1 && (
         <div className="sticky top-0 z-10 flex shrink-0 border-b border-gray-200 bg-gray-50">
-          {tabs.map((t, i) => (
+          {tabs.map((tb, i) => (
             <button key={i} onClick={() => setTab(i)}
               className={`flex-1 px-3 py-2 text-[11px] font-medium transition-colors ${i === tab ? "border-b-2 border-blue-500 text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
-              {t.label}
+              {tb.label}
             </button>
           ))}
         </div>
@@ -131,11 +131,7 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
               <div>
                 <MicroLabel>{t("tipsTitle")}</MicroLabel>
                 <ul className="space-y-2">
-                  {["Be specific about your goal \u2014 what decision should the audience make?",
-                    "Upload structured data (CSV/Excel) for data-driven slides",
-                    "Mention specific metrics or KPIs you want highlighted",
-                    "Specify the time period (Q1 2026, March, YTD)",
-                    "Note any comparisons needed (vs target, vs last quarter)"].map((tip, i) => (
+                  {[t("tipGoal"), t("tipData"), t("tipMetrics"), t("tipPeriod"), t("tipComparisons")].map((tip, i) => (
                     <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
                       <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-blue-400" />{tip}
                     </li>
@@ -173,9 +169,9 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
 
                 <MicroLabel>{t("configuration")}</MicroLabel>
                 <div className="flex flex-wrap gap-1.5">
-                  <Chip>{input.audience || "General"}</Chip>
-                  <Chip>{input.tone || "Professional"}</Chip>
-                  <Chip>{input.language || "English"}</Chip>
+                  <Chip>{t(input.audience || "") || input.audience || t("general")}</Chip>
+                  <Chip>{t(input.tone || "") || input.tone || t("professional")}</Chip>
+                  <Chip>{t(input.language || "") || input.language || t("english")}</Chip>
                   <Chip>{input.slide_count} {t("slides")}</Chip>
                 </div>
               </div>
@@ -265,9 +261,9 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
                 <MicroLabel>{t("presentation")}</MicroLabel>
                 <p className="text-sm font-semibold text-gray-900">{summary.title}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  <Chip>{summary.language}</Chip>
-                  <Chip>{summary.tone || "Professional"}</Chip>
-                  <Chip>{summary.audience || "General"}</Chip>
+                  <Chip>{t(summary.language || "") || summary.language}</Chip>
+                  <Chip>{t(summary.tone || "") || summary.tone || t("professional")}</Chip>
+                  <Chip>{t(summary.audience || "") || summary.audience || t("general")}</Chip>
                   {summary.llm_provider && <Chip>{summary.llm_provider}</Chip>}
                 </div>
                 <MicroLabel>{t("stats")}</MicroLabel>
@@ -309,13 +305,13 @@ export function ContextPanel({ currentStep, presentationId, isOpen, onToggle }: 
   );
 }
 
-function getTabs(step: number): { id: string; label: string }[] {
+function getTabs(step: number, t: (k: string) => string): { id: string; label: string }[] {
   switch (step) {
-    case 1: return [{ id: "tips", label: "Getting Started" }];
-    case 2: return [{ id: "intake", label: "Setup Brief" }];
-    case 3: return [{ id: "intake", label: "Setup" }, { id: "plan", label: "Plan" }, { id: "source", label: "Source Data" }];
-    case 4: return [{ id: "intake", label: "Setup" }, { id: "plan", label: "Plan" }, { id: "content", label: "Content" }];
-    case 5: return [{ id: "summary", label: "Summary" }];
-    default: return [{ id: "intake", label: "Setup" }];
+    case 1: return [{ id: "tips", label: t("gettingStarted") }];
+    case 2: return [{ id: "intake", label: t("setupBrief") }];
+    case 3: return [{ id: "intake", label: t("setup") }, { id: "plan", label: t("plan") }, { id: "source", label: t("sourceData") }];
+    case 4: return [{ id: "intake", label: t("setup") }, { id: "plan", label: t("plan") }, { id: "content", label: t("content") }];
+    case 5: return [{ id: "summary", label: t("summaryTab") }];
+    default: return [{ id: "intake", label: t("setup") }];
   }
 }

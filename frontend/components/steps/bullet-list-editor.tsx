@@ -37,7 +37,7 @@ export function BulletListEditor({ items, onChange }: Props) {
   return (
     <div className="space-y-1.5" dir={isRTL ? "rtl" : "ltr"}>
       {items.map((item, i) => (
-        <div key={i} className={`group/bullet flex items-start gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
+        <div key={i} className="group/bullet flex items-start gap-2">
           {/* Bullet marker */}
           <span className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300" />
 
@@ -65,7 +65,7 @@ export function BulletListEditor({ items, onChange }: Props) {
           )}
 
           {/* Actions */}
-          <div className={`flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/bullet:opacity-100 ${isRTL ? "flex-row-reverse" : ""}`}>
+          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/bullet:opacity-100">
             <button onClick={() => move(i, "up")} disabled={i === 0}
               className="rounded p-0.5 text-gray-300 hover:text-gray-500 disabled:opacity-30">
               <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
@@ -82,7 +82,7 @@ export function BulletListEditor({ items, onChange }: Props) {
       ))}
 
       <button onClick={add}
-        className={`flex items-center gap-1 text-xs font-medium text-[#0091DA] transition-colors hover:text-[#00338D] ${isRTL ? "flex-row-reverse" : ""}`}>
+        className="flex items-center gap-1 text-xs font-medium text-[#0091DA] transition-colors hover:text-[#00338D]">
         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
         {t("addBullet") || "Add bullet"}
       </button>

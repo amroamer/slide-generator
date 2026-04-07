@@ -816,6 +816,11 @@ async def _generate_slides_background(task_id: str, ctx: dict):
                 endpoint_url=endpoint_url,
                 model=model,
             )
+            # Inject anti-hallucination rules
+            from app.services.llm_resolver import _load_anti_hallucination
+            rules = await _load_anti_hallucination(db)
+            if rules:
+                provider.set_system_suffix(rules)
             logger.info("Background task %s: LLM provider resolved: %s/%s", task_id, provider_name, model)
 
             system_prompt = build_single_slide_system_prompt(

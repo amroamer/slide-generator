@@ -29,7 +29,7 @@ export function TitleTable({ content, primary, accent, isRTL = false }: Props) {
         <h2 className={`mt-3 shrink-0 text-[16px] font-bold leading-snug line-clamp-2 ${textAlign(isRTL)}`} style={{ color: primary }}>{title}</h2>
         <ul className="mt-4 flex-1 space-y-2 overflow-hidden">
           {bullets.map((b, i) => (
-            <li key={i} className={`flex items-start gap-2 text-[11px] leading-relaxed text-gray-700 ${isRTL ? "flex-row-reverse" : ""}`}>
+            <li key={i} className="flex items-start gap-2 text-[11px] leading-relaxed text-gray-700">
               <span className="mt-[5px] h-[5px] w-[5px] shrink-0 rounded-full" style={{ background: accent }} />
               <span className={`line-clamp-2 ${textAlign(isRTL)} ${fontClass(isRTL)}`}>{renderMd(b)}</span>
             </li>
@@ -73,7 +73,7 @@ export function TitleTable({ content, primary, accent, isRTL = false }: Props) {
                     <td key={ci} dir={isNumeric ? "ltr" : undefined}
                       className={`${cellPad} ${fontSize} border-b border-gray-100 ${isFirstCol ? `font-medium text-gray-900 ${textAlign(isRTL)}` : "text-gray-600"} ${isNumeric ? "text-left tabular-nums" : textAlign(isRTL)} ${fontClass(isRTL)}`}>
                       {statusColor ? (
-                        <span className={`inline-flex items-center gap-1 ${isRTL ? "flex-row-reverse" : ""}`}>
+                        <span className="inline-flex items-center gap-1">
                           <span className="inline-block h-[7px] w-[7px] rounded-full" style={{ background: statusColor }} />
                           <span>{val}</span>
                         </span>

@@ -1,5 +1,7 @@
 import json
 
+from app.prompts.planner import DATA_INTEGRITY_RULES, WRITER_DATA_INTEGRITY_RULES, DATA_REINFORCEMENT
+
 
 def build_writer_system_prompt(language: str, tone: str, audience: str) -> str:
     prompt = (
@@ -35,6 +37,8 @@ def build_writer_system_prompt(language: str, tone: str, audience: str) -> str:
         "\nCRITICAL: When slide_type is 'table', data_table MUST NOT be null."
         "\n          When slide_type is 'chart', chart_data MUST NOT be null."
         "\n          A table/chart slide with only bullet text is a FAILURE."
+        + DATA_INTEGRITY_RULES
+        + WRITER_DATA_INTEGRITY_RULES
     )
 
     tone_map = {
@@ -86,11 +90,12 @@ def build_writer_user_prompt(
 
     if parsed_data_text:
         parts.append(
-            "\nSOURCE DATA (use actual values from this data in your slide content):\n"
+            "\nSOURCE DATA FROM UPLOADED FILES:\n"
             + parsed_data_text
+            + "\n\n" + DATA_REINFORCEMENT
         )
     elif data_summary and data_summary.get("files"):
-        parts.append("\nSOURCE DATA (use actual values from this data in your slide content):")
+        parts.append("\nSOURCE DATA FROM UPLOADED FILES:")
         for f in data_summary["files"]:
             fname = f.get("filename", "unknown")
             ftype = f.get("type", "unknown")

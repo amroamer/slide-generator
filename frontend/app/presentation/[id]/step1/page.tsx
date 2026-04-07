@@ -110,11 +110,11 @@ export default function Step1Page() {
   }
 
   const ENHANCE_ACTIONS = [
-    { key: "specific", emoji: "\u2728", label: "Make it more specific" },
-    { key: "data", emoji: "\uD83D\uDCCA", label: "Add data focus" },
-    { key: "executive", emoji: "\uD83C\uDFAF", label: "Add executive framing" },
-    { key: "structure", emoji: "\uD83D\uDCCB", label: "Add structure hints" },
-    { key: "simplify", emoji: "\uD83D\uDD04", label: "Simplify" },
+    { key: "specific", emoji: "\u2728", label: t("makeSpecific") },
+    { key: "data", emoji: "\uD83D\uDCCA", label: t("addDataFocus") },
+    { key: "executive", emoji: "\uD83C\uDFAF", label: t("addExecutiveFraming") },
+    { key: "structure", emoji: "\uD83D\uDCCB", label: t("addStructureHints") },
+    { key: "simplify", emoji: "\uD83D\uDD04", label: t("simplify") },
   ];
 
   if (!loaded) return (
@@ -168,7 +168,7 @@ export default function Step1Page() {
               {/* Enhance prompt actions */}
               <div className="mt-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs text-gray-400">Enhance your prompt</span>
+                  <span className="text-xs text-gray-400">{t("enhancePrompt")}</span>
                   {prevPrompt !== null && (
                     <button onClick={handleUndo} className="flex items-center gap-1 text-xs text-[#0091DA] transition-colors hover:text-[#00338D] animate-fade-in">
                       <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" /></svg>

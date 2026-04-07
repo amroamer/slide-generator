@@ -88,6 +88,9 @@ export const translations = {
     content: 'Content',
     design: 'Design',
     export: 'Export',
+    setup: 'Setup',
+    setupBrief: 'Setup Brief',
+    summaryTab: 'Summary',
 
     // ── Agent Names ──
     intakeAgent: 'Setup Agent',
@@ -135,6 +138,16 @@ export const translations = {
     english: 'English',
     arabic: 'العربية',
     bilingual: 'Bilingual',
+    // Audience DB values
+    'Board/C-Suite': 'Board/C-Suite',
+    'Senior Management': 'Senior Management',
+    'Working Team': 'Working Team',
+    'External Client': 'External Client',
+    'Regulatory Body': 'Regulatory Body',
+    // Tone DB values
+    'Formal Board-Level': 'Formal Board-Level',
+    'Client-Facing Professional': 'Client-Facing Professional',
+    'Internal Working Session': 'Internal Working Session',
 
     // ── Step 2 ──
     generatePlan: 'Generate Plan',
@@ -222,6 +235,11 @@ export const translations = {
     fromAgent: 'From',
     addBullet: 'Add bullet',
     emptyBullet: 'Empty bullet',
+    enhancePrompt: 'Enhance your prompt',
+    makeSpecific: 'Make it more specific',
+    addDataFocus: 'Add data focus',
+    addExecutiveFraming: 'Add executive framing',
+    addStructureHints: 'Add structure hints',
     slideTypeTitle: 'Title',
     slideTypeContent: 'Content',
     slideTypeChart: 'Chart',
@@ -485,6 +503,9 @@ export const translations = {
     content: 'المحتوى',
     design: 'التصميم',
     export: 'التصدير',
+    setup: 'الإعداد',
+    setupBrief: 'ملخص الإعداد',
+    summaryTab: 'الملخص',
 
     // ── Agent Names ──
     intakeAgent: 'وكيل الإعداد',
@@ -532,6 +553,16 @@ export const translations = {
     english: 'English',
     arabic: 'العربية',
     bilingual: 'ثنائي اللغة',
+    // Audience DB values
+    'Board/C-Suite': 'مجلس الإدارة',
+    'Senior Management': 'الإدارة العليا',
+    'Working Team': 'فريق العمل',
+    'External Client': 'عميل خارجي',
+    'Regulatory Body': 'جهة رقابية',
+    // Tone DB values
+    'Formal Board-Level': 'رسمي - مستوى مجلس الإدارة',
+    'Client-Facing Professional': 'مهني - موجه للعميل',
+    'Internal Working Session': 'داخلي - جلسة عمل',
 
     // ── Step 2 ──
     generatePlan: 'إنشاء الخطة',
@@ -619,6 +650,11 @@ export const translations = {
     fromAgent: 'من',
     addBullet: 'إضافة نقطة',
     emptyBullet: 'نقطة فارغة',
+    enhancePrompt: 'حسّن طلبك',
+    makeSpecific: 'اجعله أكثر تحديداً',
+    addDataFocus: 'أضف تركيزاً على البيانات',
+    addExecutiveFraming: 'أضف إطاراً تنفيذياً',
+    addStructureHints: 'أضف تلميحات هيكلية',
     slideTypeTitle: 'عنوان',
     slideTypeContent: 'محتوى',
     slideTypeChart: 'رسم بياني',

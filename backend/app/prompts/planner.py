@@ -1,5 +1,67 @@
 import json
 
+# Shared anti-hallucination rules — appended to all agent system prompts
+DATA_INTEGRITY_RULES = """
+DATA INTEGRITY — ZERO HALLUCINATION RULES:
+These rules are MANDATORY and override all other instructions when there is a conflict.
+
+RULE 1 — EXACT VALUES ONLY:
+Every name, label, title, category, number, date, percentage, and status in your response
+must be copied character-by-character from the uploaded source data. If a value does not
+appear in the source data, it must not appear in your response.
+
+RULE 2 — NO INVENTION:
+Do not invent, fabricate, create, or infer any value not explicitly present in the source data.
+- Do not create group names or category labels that don't exist as values in a column.
+- Do not create project names, phase names, or workstream names unless they appear in the data.
+- Do not create summary labels to replace actual row values.
+- Do not infer relationships between rows unless a column explicitly defines that relationship.
+
+RULE 3 — NO MODIFICATION:
+Do not rename, abbreviate, translate, paraphrase, merge, or reword any value from the source
+data. Use the exact string as it appears in the data.
+
+RULE 4 — NO UNSUPPORTED GROUPING:
+Do not group, merge, or categorize rows unless the grouping already exists as a column in the
+source data. You may group by exact values of an existing column, but you may not create new
+categories that don't exist in any column.
+
+RULE 5 — EXACT NUMBERS:
+Use exact numbers from the data. Do not round, estimate, average, or recalculate values.
+If the data says 65%, use 65% — not "about 60%" or "nearly 70%".
+
+RULE 6 — MISSING DATA:
+If a value is missing, empty, or null in the source data, represent it as "N/A" or
+"غير متوفر" in Arabic. Do not guess or fill in a plausible value.
+
+RULE 7 — SELF-CHECK:
+Before finalizing your response, verify every name, label, and number against the source data.
+If a value does not appear in the uploaded data — remove it and replace with one that does.
+"""
+
+# Additional rules specific to the Writer Agent
+WRITER_DATA_INTEGRITY_RULES = """
+ADDITIONAL DATA INTEGRITY RULES FOR CONTENT GENERATION:
+- For TABLE slides: every cell value in data_table.rows must be directly copied from the source
+  data. Do not rewrite, summarize, or abbreviate any cell. Use exact column headers from the
+  source as table headers.
+- For CHART slides: labels must be exact values from a column in the source data. Numeric data
+  must be exact counts or values computed from the source — not LLM estimates. If you count
+  occurrences of a category, count them precisely.
+- For CONTENT slides: when citing a specific item, person, date, or metric, use the exact
+  string as it appears in the source data.
+- If the plan's content_outline references a term that does not exist in the source data,
+  ignore that term and use real values from the data instead.
+- When listing items, use the actual individual values from the data — do not merge multiple
+  items into a single summary statement.
+"""
+
+# Reinforcement text appended after data sections in user prompts
+DATA_REINFORCEMENT = (
+    "Every value in your response must come directly from the data above. "
+    "Do not add any name, category, number, or label that does not exist in the data above."
+)
+
 
 def build_planner_system_prompt(language: str, tone: str) -> str:
     prompt = (
@@ -16,6 +78,7 @@ def build_planner_system_prompt(language: str, tone: str) -> str:
         "\n- If the data contains dates, reference the actual dates and any variances."
         "\n- If the data contains names of people, projects, or items — use those exact names in your output."
         "\n- Do NOT generalize, summarize, or paraphrase the data into vague descriptions. Present the real data."
+        + DATA_INTEGRITY_RULES
     )
 
     if language == "arabic":
@@ -65,11 +128,9 @@ def build_planner_user_prompt(
     # Data — prefer parsed_data_text (has actual cell values)
     if parsed_data_text:
         parts.append(
-            "\nACTUAL DATA FROM UPLOADED FILES — Use these exact values in your plan:\n"
+            "\nACTUAL DATA FROM UPLOADED FILES:\n"
             + parsed_data_text
-            + "\n\nThe data above contains real values from the user's files. "
-            "Reference actual names, numbers, dates, percentages, and statuses "
-            "from this data in your slide titles and content_outline items."
+            + "\n\n" + DATA_REINFORCEMENT
         )
     elif data_summary and data_summary.get("files"):
         parts.append("\nACTUAL DATA FROM UPLOADED FILES — Use these exact values in your plan:")
@@ -118,9 +179,7 @@ def build_planner_user_prompt(
                 data_str = json.dumps(f.get("data", {}))[:2000]
                 parts.append(f"    {data_str}")
         parts.append(
-            "\nThe data above contains real values from the user's files. "
-            "Reference actual names, numbers, dates, percentages, and statuses "
-            "from this data in your slide titles and content_outline items."
+            "\n" + DATA_REINFORCEMENT
         )
 
     parts.append(f"\nCONFIGURATION:")
@@ -142,6 +201,10 @@ def build_planner_user_prompt(
         '"content_outline": ["bullet 1", "bullet 2", "..."], '
         '"data_references": ["filename.csv:column_name"], '
         '"speaker_notes_hint": "..."}]}]}'
+        "\n\nDATA INTEGRITY CHECK FOR YOUR OUTPUT:"
+        "\n- Every value in slide_title must exist in the uploaded data."
+        "\n- Every value in content_outline items must reference values from the uploaded data."
+        "\n- If you cannot find a value in the data to support a content_outline item, do not include that item."
     )
 
     return "\n".join(parts)
@@ -277,6 +340,7 @@ def build_section_detail_system_prompt(language: str, tone: str) -> str:
         "\n- Every content_outline item must reference real data points — not generic placeholders."
         "\n- Slide titles must include actual data (e.g., specific names, numbers, percentages)."
         "\n- Do NOT generalize or paraphrase data into vague descriptions. Present the real data."
+        + DATA_INTEGRITY_RULES
     )
 
     if language == "arabic":
@@ -347,8 +411,9 @@ def build_section_detail_user_prompt(
 
     if data_context:
         parts.append(
-            "\nACTUAL DATA FROM UPLOADED FILES — Use these exact values in slide content:\n"
+            "\nACTUAL DATA FROM UPLOADED FILES:\n"
             + data_context
+            + "\n\n" + DATA_REINFORCEMENT
         )
 
     # Build expected slide IDs

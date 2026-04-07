@@ -241,7 +241,7 @@ function TemplateDesignRenderer({ content, config, primary, accent, isRTL, onGen
                           return (
                             <td key={ci} className={`${cellPad} ${fontSize} border-b border-gray-100 ${ci === 0 ? "font-medium text-gray-900" : "text-gray-600"} ${isRTL ? "text-right" : "text-left"}`}>
                               {sc ? (
-                                <span className={`inline-flex items-center gap-1 ${isRTL ? "flex-row-reverse" : ""}`}>
+                                <span className="inline-flex items-center gap-1">
                                   <span className="inline-block h-[5px] w-[5px] rounded-full" style={{ background: sc }} />
                                   <span>{val}</span>
                                 </span>
@@ -263,7 +263,7 @@ function TemplateDesignRenderer({ content, config, primary, accent, isRTL, onGen
           if (!text) return null;
           const fs = Math.min(Math.max((shape.font_size_pt || 12) * 0.7, 8), 13);
           return (
-            <div key={shape._idx} style={style} className={`flex items-start gap-1.5 ${isRTL ? "flex-row-reverse" : ""}`}>
+            <div key={shape._idx} style={style} className="flex items-start gap-1.5">
               <span className="mt-[4px] h-[5px] w-[5px] shrink-0 rounded-full" style={{ background: accent }} />
               <span style={{ fontSize: `${fs}px`, lineHeight: 1.4, color: "#374151" }} className={`line-clamp-3 ${isRTL ? "text-right" : "text-left"}`}>{renderMd(text)}</span>
             </div>
@@ -313,7 +313,7 @@ function TemplateDesignRenderer({ content, config, primary, accent, isRTL, onGen
                     return (
                       <td key={ci} className={`px-1.5 py-1 text-[8px] border-b border-gray-100 ${ci === 0 ? "font-medium text-gray-900" : "text-gray-600"} ${isRTL ? "text-right" : "text-left"}`}>
                         {sc ? (
-                          <span className={`inline-flex items-center gap-1 ${isRTL ? "flex-row-reverse" : ""}`}>
+                          <span className="inline-flex items-center gap-1">
                             <span className="inline-block h-[5px] w-[5px] rounded-full" style={{ background: sc }} />
                             {val}
                           </span>
