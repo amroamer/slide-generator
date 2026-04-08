@@ -493,6 +493,16 @@ export default function BrandProfilesPage() {
   const [deleteTarget, setDeleteTarget] = useState<BrandProfile | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Import state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importStep, setImportStep] = useState<"upload" | "preview" | "done">("upload");
+  const [importPreview, setImportPreview] = useState<any>(null);
+  const [importChecked, setImportChecked] = useState<Set<number>>(new Set());
+  const [importParsing, setImportParsing] = useState(false);
+  const [importApplying, setImportApplying] = useState(false);
+  const [importResult, setImportResult] = useState<any>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
   const fetchProfiles = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -524,6 +534,83 @@ export default function BrandProfilesPage() {
     }
   };
 
+  async function handleExport() {
+    try {
+      const { data } = await api.get("/brand-profiles/export/xlsx", { responseType: "blob" });
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "brand_profiles_export.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export failed:", err);
+    }
+  }
+
+  async function handleDownloadTemplate() {
+    try {
+      const { data } = await api.get("/brand-profiles/import/template", { responseType: "blob" });
+      const url = URL.createObjectURL(new Blob([data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Brand_Profile_Import_Template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {}
+  }
+
+  function openImportModal() {
+    setShowImportModal(true);
+    setImportStep("upload");
+    setImportPreview(null);
+    setImportChecked(new Set());
+    setImportResult(null);
+    setImportError(null);
+  }
+
+  async function handleImportFile(file: File) {
+    setImportParsing(true);
+    setImportError(null);
+    if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
+      setImportError("Only Excel files (.xlsx) are accepted");
+      setImportParsing(false);
+      return;
+    }
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const { data } = await api.post("/brand-profiles/import/preview", fd);
+      setImportPreview(data);
+      const checked = new Set<number>();
+      data.rows.forEach((r: any, i: number) => { if (r.action !== "error" && r.action !== "skip") checked.add(i); });
+      setImportChecked(checked);
+      setImportStep("preview");
+    } catch (err: any) {
+      setImportError(err?.response?.data?.detail || err?.message || "Upload failed");
+    } finally {
+      setImportParsing(false);
+    }
+  }
+
+  async function handleImportApply() {
+    if (!importPreview) return;
+    setImportApplying(true);
+    try {
+      const selectedRows = importPreview.rows.filter((_: any, i: number) => importChecked.has(i)).map((r: any) => r.data);
+      const { data } = await api.post("/brand-profiles/import/apply", { rows: selectedRows });
+      setImportResult(data);
+      setImportStep("done");
+      await fetchProfiles();
+    } catch (err) {
+      console.error("Import apply failed:", err);
+    } finally {
+      setImportApplying(false);
+    }
+  }
+
   const executeDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -548,13 +635,25 @@ export default function BrandProfilesPage() {
             Configure visual themes applied to your presentation slides
           </p>
         </div>
-        <button
-          onClick={() => router.push("/settings/brand-profiles/new")}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#00338D] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#00338D]/90 transition-colors"
-        >
-          <PlusIcon className="h-4 w-4" />
-          Create Profile
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={handleExport}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            Export
+          </button>
+          <button onClick={openImportModal}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+            Import
+          </button>
+          <button
+            onClick={() => router.push("/settings/brand-profiles/new")}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#00338D] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#00338D]/90 transition-colors"
+          >
+            <PlusIcon className="h-4 w-4" />
+            Create Profile
+          </button>
+        </div>
       </div>
 
       {/* Loading state */}
@@ -664,6 +763,111 @@ export default function BrandProfilesPage() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in" onClick={() => !importApplying && setShowImportModal(false)}>
+          <div className="w-full max-w-2xl rounded-2xl border border-gray-200 bg-white p-6 shadow-modal animate-fade-in max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Import Brand Profiles</h3>
+              <button onClick={() => setShowImportModal(false)} className="rounded p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            {importStep === "upload" && (
+              <div>
+                <div className="rounded-xl border-2 border-dashed border-gray-200 p-8 text-center">
+                  <svg className="mx-auto mb-3 h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                  <p className="text-sm text-gray-600 mb-3">Upload an Excel file (.xlsx) with brand profiles</p>
+                  <input type="file" accept=".xlsx,.xls" className="hidden" id="brand-import-file"
+                    onChange={(e) => { if (e.target.files?.[0]) handleImportFile(e.target.files[0]); }} />
+                  <label htmlFor="brand-import-file"
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#00338D] px-4 py-2 text-sm font-medium text-white hover:bg-[#00338D]/90 transition-colors">
+                    {importParsing ? <SpinnerIcon className="h-4 w-4" /> : "Choose File"}
+                  </label>
+                  {importError && <p className="mt-3 text-sm text-red-600">{importError}</p>}
+                </div>
+                <div className="mt-4 flex justify-between items-center">
+                  <button onClick={handleDownloadTemplate} className="text-xs text-blue-600 hover:underline">Download blank template</button>
+                  <p className="text-xs text-gray-400">Use the same format as Export</p>
+                </div>
+              </div>
+            )}
+
+            {importStep === "preview" && importPreview && (
+              <div>
+                <div className="mb-4 flex gap-3 text-sm">
+                  <span className="rounded bg-emerald-50 px-2 py-0.5 text-emerald-700">{importPreview.summary.create} new</span>
+                  <span className="rounded bg-amber-50 px-2 py-0.5 text-amber-700">{importPreview.summary.update} update</span>
+                  {importPreview.summary.error > 0 && <span className="rounded bg-red-50 px-2 py-0.5 text-red-700">{importPreview.summary.error} errors</span>}
+                </div>
+                <div className="max-h-[40vh] overflow-y-auto rounded-lg border border-gray-200">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left w-8">
+                          <input type="checkbox"
+                            checked={importChecked.size === importPreview.rows.filter((r: any) => r.action !== "error").length}
+                            onChange={() => {
+                              const validIdxs = importPreview.rows.map((r: any, i: number) => r.action !== "error" ? i : -1).filter((i: number) => i >= 0);
+                              setImportChecked(importChecked.size === validIdxs.length ? new Set() : new Set(validIdxs));
+                            }}
+                            className="rounded border-gray-300" />
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Name</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Color</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {importPreview.rows.map((row: any, i: number) => (
+                        <tr key={i} className={row.action === "error" ? "bg-red-50/50" : ""}>
+                          <td className="px-3 py-2">
+                            <input type="checkbox" disabled={row.action === "error"}
+                              checked={importChecked.has(i)}
+                              onChange={() => { const s = new Set(importChecked); s.has(i) ? s.delete(i) : s.add(i); setImportChecked(s); }}
+                              className="rounded border-gray-300" />
+                          </td>
+                          <td className="px-3 py-2 font-medium text-gray-900">{row.name}</td>
+                          <td className="px-3 py-2">
+                            {row.primary_color && <span className="inline-block h-4 w-4 rounded-full border border-gray-200" style={{ background: row.primary_color }} />}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                              row.action === "create" ? "bg-emerald-100 text-emerald-700" :
+                              row.action === "update" ? "bg-amber-100 text-amber-700" :
+                              row.action === "error" ? "bg-red-100 text-red-700" :
+                              "bg-gray-100 text-gray-600"
+                            }`}>{row.action}</span>
+                            {row.errors?.length > 0 && <p className="text-[10px] text-red-500 mt-0.5">{row.errors.join(", ")}</p>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button onClick={() => setImportStep("upload")} className="btn-secondary px-4 py-2 text-sm">Back</button>
+                  <button onClick={handleImportApply} disabled={importApplying || importChecked.size === 0}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#00338D] px-4 py-2 text-sm font-medium text-white hover:bg-[#00338D]/90 disabled:opacity-50 transition-colors">
+                    {importApplying ? <SpinnerIcon className="h-4 w-4" /> : `Import ${importChecked.size} profiles`}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {importStep === "done" && importResult && (
+              <div className="text-center py-6">
+                <svg className="mx-auto mb-3 h-12 w-12 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <h4 className="text-lg font-semibold text-gray-900 mb-1">Import Complete</h4>
+                <p className="text-sm text-gray-500">{importResult.created} created, {importResult.updated} updated</p>
+                <button onClick={() => setShowImportModal(false)} className="mt-4 btn-primary px-6 py-2 text-sm">Done</button>
+              </div>
+            )}
           </div>
         </div>
       )}

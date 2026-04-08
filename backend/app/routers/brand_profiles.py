@@ -4,7 +4,7 @@ import os
 import re
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import or_, select
@@ -298,6 +298,279 @@ async def extract_colors(
         return extract_colors_from_logo(tmp.name)
     finally:
         os.unlink(tmp.name)
+
+
+# ── Export / Import ────────────────────────────────────────────
+
+_EXPORT_COLS = [
+    "name", "description", "primary_color", "secondary_color", "accent_color",
+    "background_color", "text_color", "text_secondary_color", "chart_colors",
+    "font_heading", "font_body", "font_size_title", "font_size_subtitle",
+    "font_size_body", "font_size_caption",
+    "slide_header", "slide_footer", "slide_accent_line",
+    "slide_background_style", "slide_gradient",
+    "table_header_color", "table_header_text_color", "table_alternate_row",
+    "table_alternate_color", "table_border_color", "table_style",
+    "chart_style", "chart_show_grid", "chart_show_legend",
+    "chart_legend_position", "chart_bar_radius",
+    "logo_position", "logo_size", "is_default",
+]
+
+
+@router.get("/export/xlsx")
+async def export_profiles(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export brand profiles to Excel with embedded logo images."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from openpyxl.drawing.image import Image as XlImage
+    from fastapi.responses import StreamingResponse
+    from io import BytesIO
+    from datetime import datetime
+    import json as json_mod
+
+    profiles = (await db.execute(
+        select(BrandProfile).where(
+            or_(BrandProfile.user_id == current_user.id, BrandProfile.is_system == True)  # noqa
+        ).order_by(BrandProfile.name)
+    )).scalars().all()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Brand Profiles"
+
+    headers = _EXPORT_COLS + ["logo_image"]
+    hfill = PatternFill(start_color="00338D", end_color="00338D", fill_type="solid")
+    hfont = Font(color="FFFFFF", bold=True, size=11)
+    for col, h in enumerate(headers, 1):
+        c = ws.cell(row=1, column=col, value=h)
+        c.fill = hfill
+        c.font = hfont
+
+    logo_col_idx = len(headers)  # last column
+
+    for i, bp in enumerate(profiles, 2):
+        for j, col_name in enumerate(_EXPORT_COLS, 1):
+            val = getattr(bp, col_name, None)
+            # Serialize dicts/lists to JSON strings
+            if isinstance(val, (dict, list)):
+                val = json_mod.dumps(val, ensure_ascii=False)
+            elif isinstance(val, bool):
+                val = "Yes" if val else "No"
+            ws.cell(row=i, column=j, value=val)
+
+        # Embed logo image if exists
+        if bp.logo_path and os.path.exists(bp.logo_path):
+            try:
+                img = XlImage(bp.logo_path)
+                img.width = 60
+                img.height = 60
+                ws.add_image(img, f"{chr(64 + logo_col_idx)}{i}")
+            except Exception:
+                ws.cell(row=i, column=logo_col_idx, value="[logo file error]")
+        else:
+            ws.cell(row=i, column=logo_col_idx, value="")
+
+    # Column widths
+    ws.column_dimensions["A"].width = 30  # name
+    ws.column_dimensions["B"].width = 40  # description
+    for col_letter in ["C", "D", "E", "F", "G", "H"]:
+        ws.column_dimensions[col_letter].width = 12
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = f"Brand_Profiles_Export_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@router.get("/import/template")
+async def download_brand_template():
+    """Download a blank Excel template for brand profile import."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from fastapi.responses import StreamingResponse
+    from io import BytesIO
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Brand Profiles"
+    headers = _EXPORT_COLS + ["logo_image"]
+    hfill = PatternFill(start_color="00338D", end_color="00338D", fill_type="solid")
+    hfont = Font(color="FFFFFF", bold=True, size=11)
+    for col, h in enumerate(headers, 1):
+        c = ws.cell(row=1, column=col, value=h)
+        c.fill = hfill
+        c.font = hfont
+
+    # Example row
+    ws.append([
+        "My Brand", "Custom brand profile", "#00338D", "#0091DA", "#483698",
+        "#FFFFFF", "#1A1A2E", "#6B7280", '["#00338D", "#0091DA", "#483698"]',
+        "Arial", "Arial", 28, 18, 14, 10,
+        "", "", "", "solid", "",
+        "#00338D", "#FFFFFF", "Yes", "#F5F7FA", "#E5E7EB", "striped",
+        "modern", "Yes", "Yes", "bottom", 4,
+        "top-right", "medium", "No", "",
+    ])
+
+    ws.column_dimensions["A"].width = 30
+    ws.column_dimensions["B"].width = 40
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="Brand_Profile_Import_Template.xlsx"'},
+    )
+
+
+@router.post("/import/preview")
+async def preview_brand_import(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Parse an Excel file and return a preview of what will be created/updated."""
+    if not file.filename or not file.filename.endswith((".xlsx", ".xls")):
+        raise HTTPException(400, "Only .xlsx and .xls files are supported")
+
+    import openpyxl
+    from io import BytesIO
+
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(400, "Max file size is 10MB")
+
+    wb = openpyxl.load_workbook(BytesIO(content))
+    ws = wb.active
+
+    header_row = [str(cell.value or "").strip().lower().replace(" ", "_") for cell in ws[1]]
+
+    # Get existing profiles by name
+    existing_result = await db.execute(
+        select(BrandProfile).where(
+            or_(BrandProfile.user_id == current_user.id, BrandProfile.is_system == True)  # noqa
+        )
+    )
+    existing_by_name = {bp.name.lower(): bp for bp in existing_result.scalars().all()}
+
+    results = []
+    for row in ws.iter_rows(min_row=2):
+        vals = {}
+        for idx, cell in enumerate(row):
+            if idx < len(header_row) and header_row[idx]:
+                vals[header_row[idx]] = cell.value
+
+        name = str(vals.get("name", "") or "").strip()
+        if not name:
+            continue  # skip empty rows
+
+        errors = []
+        if not name:
+            errors.append("name is required")
+
+        existing = existing_by_name.get(name.lower())
+
+        if errors:
+            action = "error"
+        elif existing is None:
+            action = "create"
+        else:
+            action = "update"
+
+        results.append({
+            "row_number": row[0].row,
+            "name": name,
+            "primary_color": str(vals.get("primary_color", "") or ""),
+            "action": action,
+            "errors": errors,
+            "data": {k: str(v) if v is not None else "" for k, v in vals.items()},
+        })
+
+    summary = {
+        "total": len(results),
+        "create": sum(1 for r in results if r["action"] == "create"),
+        "update": sum(1 for r in results if r["action"] == "update"),
+        "skip": sum(1 for r in results if r["action"] == "skip"),
+        "error": sum(1 for r in results if r["action"] == "error"),
+    }
+
+    return {"summary": summary, "rows": results}
+
+
+class BrandImportApply(BaseModel):
+    rows: list[dict]
+
+
+@router.post("/import/apply")
+async def apply_brand_import(
+    body: BrandImportApply,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Apply the confirmed import rows."""
+    import json as json_mod
+
+    created = 0
+    updated = 0
+
+    for row_data in body.rows:
+        name = str(row_data.get("name", "")).strip()
+        if not name:
+            continue
+
+        # Find existing
+        existing = (await db.execute(
+            select(BrandProfile).where(
+                BrandProfile.name == name,
+                or_(BrandProfile.user_id == current_user.id, BrandProfile.user_id.is_(None)),
+            ).order_by(BrandProfile.user_id.desc().nulls_last()).limit(1)
+        )).scalar_one_or_none()
+
+        # Build profile fields
+        fields = {}
+        for col in _EXPORT_COLS:
+            if col in row_data and row_data[col] not in (None, ""):
+                val = row_data[col]
+                # Parse JSON fields
+                if col in ("chart_colors", "slide_header", "slide_footer", "slide_accent_line", "slide_gradient"):
+                    if isinstance(val, str):
+                        try:
+                            val = json_mod.loads(val)
+                        except (json_mod.JSONDecodeError, ValueError):
+                            pass
+                # Parse boolean fields
+                elif col in ("table_alternate_row", "chart_show_grid", "chart_show_legend", "is_default"):
+                    val = str(val).lower() in ("yes", "true", "1")
+                # Parse int fields
+                elif col in ("font_size_title", "font_size_subtitle", "font_size_body", "font_size_caption", "chart_bar_radius"):
+                    try:
+                        val = int(val)
+                    except (ValueError, TypeError):
+                        continue
+                fields[col] = val
+
+        if existing:
+            for k, v in fields.items():
+                if k != "name":  # don't overwrite name
+                    setattr(existing, k, v)
+            updated += 1
+        else:
+            bp = BrandProfile(user_id=current_user.id, **fields)
+            db.add(bp)
+            created += 1
+
+    await db.flush()
+    return {"created": created, "updated": updated}
 
 
 @router.post("/seed")
