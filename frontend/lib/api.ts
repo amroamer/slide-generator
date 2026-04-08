@@ -34,8 +34,9 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Only intercept 401s, not other errors
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    // Intercept 401 and 403 (expired/invalid token)
+    const status = error.response?.status;
+    if ((status !== 401 && status !== 403) || originalRequest._retry) {
       return Promise.reject(error);
     }
 
