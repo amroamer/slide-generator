@@ -1,4 +1,6 @@
+import time
 import uuid
+from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -7,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
 from app.schemas.auth import (
+    PasswordResetRequest,
     RefreshRequest,
     TokenResponse,
     UserLogin,
@@ -21,6 +24,11 @@ from app.services.auth_service import (
     hash_password,
     verify_password,
 )
+
+# Simple in-memory rate limiter for password reset: email -> list of timestamps
+_reset_attempts: dict[str, list[float]] = defaultdict(list)
+_RESET_MAX = 5
+_RESET_WINDOW = 3600  # 1 hour
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -103,3 +111,31 @@ async def refresh_token(body: RefreshRequest, db: AsyncSession = Depends(get_db)
             detail="User not found",
         )
     return create_tokens(user.id)
+
+
+@router.post("/reset-password")
+async def reset_password(body: PasswordResetRequest, db: AsyncSession = Depends(get_db)):
+    """Reset a user's password. No authentication required."""
+    email = body.email.lower()
+
+    # Rate limiting
+    now = time.time()
+    attempts = _reset_attempts[email]
+    _reset_attempts[email] = [t for t in attempts if now - t < _RESET_WINDOW]
+    if len(_reset_attempts[email]) >= _RESET_MAX:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many reset attempts. Try again later.",
+        )
+    _reset_attempts[email].append(now)
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if not user:
+        # Don't reveal whether email exists — return success either way
+        return {"message": "If this email is registered, the password has been reset."}
+
+    user.password_hash = hash_password(body.new_password)
+    await db.flush()
+
+    return {"message": "Password reset successfully."}

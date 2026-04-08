@@ -15,6 +15,15 @@ async def lifespan(app: FastAPI):
     app.state.redis = aioredis.from_url(
         settings.REDIS_URL, decode_responses=True
     )
+    # Seed default prompts and brand profiles if missing
+    try:
+        from seed_data.seed import run_all_seeds
+        from app.database import async_session_factory
+        async with async_session_factory() as db:
+            await run_all_seeds(db)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Seed failed (non-fatal): %s", e)
     yield
     # Shutdown
     await app.state.redis.close()
